@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quant NetViz</title>
+<style>
+:root{--bg:#0f1317;--panel:#171c22;--fg:#e6eaee;--muted:#8b96a1;--line:#2a323b;--teal:#2dd4bf;--coral:#ff7a6b;--glow:#ffd166}
+:root[data-theme=light]{--bg:#f5f6f8;--panel:#fff;--fg:#1c2127;--muted:#68737e;--line:#d9dee3;--teal:#0f9d8e;--coral:#e5533f;--glow:#e09f00}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.4 system-ui,sans-serif}
+header{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+header h1{font-size:16px;margin:0 8px 0 0}
+main{padding:12px 16px;display:grid;gap:12px;max-width:1500px;margin:auto}
+section{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:0 0 8px}
+button,select,input[type=text]{background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:5px 10px;font:inherit}
+button{cursor:pointer}button:hover{border-color:var(--teal)}
+input[type=text]{width:min(560px,100%);font-family:ui-monospace,monospace}
+input[type=file]{color:var(--muted)}
+.row{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+.muted{color:var(--muted)}.err{color:var(--coral)}
+.pos{color:var(--teal)}.neg{color:var(--coral)}
+#graph{width:100%;height:560px;display:block;cursor:pointer}
+#boards{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+#boards figure{margin:0}#boards figcaption{font-size:12px;color:var(--muted);text-align:center}
+#boards canvas{width:100%;aspect-ratio:1;display:block;border-radius:4px}
+#contrib{font:12px ui-monospace,monospace;border-collapse:collapse}
+#contrib td{padding:1px 10px 1px 0;cursor:pointer}#contrib tr:hover{background:var(--bg)}
+#neuron{width:min(420px,60vw)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Quant NetViz</h1>
+  <input type="file" id="file" title="Load a network file (.qnet)">
+  <button id="demo">Generate demo net</button>
+  <span id="status" class="muted">No net loaded.</span>
+  <span style="flex:1"></span>
+  <button id="theme">Theme</button>
+</header>
+<main id="app" hidden>
+  <section>
+    <h2>Position</h2>
+    <div class="row">
+      <input type="text" id="fen" spellcheck="false" aria-label="FEN">
+      <label>Activation
+        <select id="actfn"><option value="crelu">CReLU</option><option value="screlu">SCReLU</option></select>
+      </label>
+      <span id="fenerr" class="err"></span>
+    </div>
+    <div class="row" style="margin-top:8px;align-items:flex-start">
+      <div>Output: <b id="out" style="font-size:18px">–</b>
+        <div class="muted">side to move is ignored (single white-view perspective)</div></div>
+      <div><div class="muted">Strongest contributions (activation × output weight)</div><table id="contrib"></table></div>
+    </div>
+  </section>
+  <section>
+    <h2>Network graph</h2>
+    <div class="row">
+      <label>Top-k connections <input type="range" id="topk" min="10" max="3000" value="300"> <b id="topkv">300</b></label>
+      <span class="muted">12 piece-type input blocks (white PNBRQK, black pnbrqk) → 16×16 hidden neurons → output. Click a neuron to select it.</span>
+    </div>
+    <canvas id="graph"></canvas>
+  </section>
+  <section>
+    <h2>Neuron weights</h2>
+    <div class="row">
+      <button id="prev" aria-label="previous neuron">◀</button>
+      <input type="range" id="neuron" min="0" max="255" value="0">
+      <button id="next" aria-label="next neuron">▶</button>
+      <span id="ninfo"></span>
+    </div>
+    <div id="boards" style="margin-top:10px"></div>
+  </section>
+</main>
+
+<!-- LOADER: only code that knows the file format. Adapt this block when the bullet format exists (Phase 3). -->
+<script id="netio">
+// Demo format "QNET", little-endian:
+//   char[4] "QNET" | u32 version=1 | u32 nIn | u32 nH
+//   f32 w1[nIn*nH] (input-major: w1[f*nH+h]) | f32 b1[nH] | f32 w2[nH] | f32 b2[1]
+// Input feature f = piece*64 + sq; piece 0-5 = white PNBRQK, 6-11 = black pnbrqk; sq = rank*8+file (A1=0).
+const NetIO = (() => {
+  const HDR = 16;
+  const size = (nIn, nH) => HDR + 4 * (nIn * nH + nH + nH + 1);
+
+  function parse(buf) {
+    if (buf.byteLength < HDR) throw new Error('file too short');
+    const dv = new DataView(buf);
+    if (dv.getUint32(0, true) !== 0x54454e51) throw new Error('bad magic (expected QNET)');
+    if (dv.getUint32(4, true) !== 1) throw new Error('unsupported version');
+    const nIn = dv.getUint32(8, true), nH = dv.getUint32(12, true);
+    if (buf.byteLength !== size(nIn, nH)) throw new Error(`size mismatch for ${nIn}x${nH} net`);
+    let o = HDR;
+    const take = n => { const a = new Float32Array(buf, o, n); o += 4 * n; return a; };
+    return { nIn, nH, w1: take(nIn * nH), b1: take(nH), w2: take(nH), b2: take(1) };
+  }
+
+  function serialize(net) {
+    const buf = new ArrayBuffer(size(net.nIn, net.nH));
+    const dv = new DataView(buf);
+    dv.setUint32(0, 0x54454e51, true); dv.setUint32(4, 1, true);
+    dv.setUint32(8, net.nIn, true); dv.setUint32(12, net.nH, true);
+    let o = HDR;
+    for (const a of [net.w1, net.b1, net.w2, net.b2]) { new Float32Array(buf, o, a.length).set(a); o += 4 * a.length; }
+    return buf;
+  }
+
+  // Random 768 -> 256 -> 1 net: noise plus a few piece/square blobs per neuron so heatmaps have structure.
+  function demo(seed = 1) {
+    let s = seed >>> 0;
+    const rnd = () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+    const gauss = () => Math.sqrt(-2 * Math.log(rnd() + 1e-12)) * Math.cos(2 * Math.PI * rnd());
+    const nIn = 768, nH = 256;
+    const w1 = new Float32Array(nIn * nH), b1 = new Float32Array(nH), w2 = new Float32Array(nH), b2 = new Float32Array(1);
+    for (let h = 0; h < nH; h++) {
+      const cx = rnd() * 8, cy = rnd() * 8, sig = 1 + rnd() * 2;
+      for (let p = 0; p < 12; p++) {
+        const a = rnd() < 0.3 ? 0.9 * gauss() : 0;
+        for (let sq = 0; sq < 64; sq++) {
+          const d2 = ((sq & 7) - cx) ** 2 + ((sq >> 3) - cy) ** 2;
+          w1[(p * 64 + sq) * nH + h] = 0.08 * gauss() + a * Math.exp(-d2 / (2 * sig * sig));
+        }
+      }
+      b1[h] = 0.2 * gauss(); w2[h] = 0.25 * gauss();
+    }
+    b2[0] = 0.1 * gauss();
+    return { nIn, nH, w1, b1, w2, b2 };
+  }
+  return { parse, serialize, demo };
+})();
+</script>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const PIECES = 'PNBRQKpnbrqk';
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const state = { net: null, feats: [], acc: null, act: null, out: 0, sel: 0, k: 300, ordIn: null, ordOut: null, maxW1: 1, maxW2: 1 };
+
+// ---- model ----
+function parseFen(fen) {
+  const rows = fen.trim().split(/\s+/)[0].split('/');
+  if (rows.length !== 8) throw new Error('FEN needs 8 ranks');
+  const feats = [];
+  rows.forEach((row, i) => {
+    let file = 0;
+    for (const ch of row) {
+      if (/[1-8]/.test(ch)) file += +ch;
+      else {
+        const p = PIECES.indexOf(ch);
+        if (p < 0 || file > 7) throw new Error(`bad FEN char "${ch}" in rank ${8 - i}`);
+        feats.push(p * 64 + (7 - i) * 8 + file++);
+      }
+    }
+    if (file !== 8) throw new Error(`rank ${8 - i} does not have 8 files`);
+  });
+  return feats;
+}
+
+const activate = x => { const c = x < 0 ? 0 : x > 1 ? 1 : x; return $('actfn').value === 'screlu' ? c * c : c; };
+
+function forward() {
+  const { w1, b1, w2, b2, nH } = state.net;
+  const acc = Float32Array.from(b1);
+  for (const f of state.feats) for (let h = 0; h < nH; h++) acc[h] += w1[f * nH + h];
+  let out = b2[0];
+  const act = new Float32Array(nH);
+  for (let h = 0; h < nH; h++) { act[h] = activate(acc[h]); out += act[h] * w2[h]; }
+  Object.assign(state, { acc, act, out });
+}
+
+function sortedByMagnitude(a) {
+  const ord = new Uint32Array(a.length).map((_, i) => i);
+  return ord.sort((x, y) => Math.abs(a[y]) - Math.abs(a[x]));
+}
+
+function setNet(net, label) {
+  if (net.nIn !== 768) throw new Error(`viewer expects 768 inputs, got ${net.nIn}`);
+  const maxAbs = a => a.reduce((m, v) => Math.max(m, Math.abs(v)), 1e-9);
+  Object.assign(state, { net, sel: 0, ordIn: sortedByMagnitude(net.w1), ordOut: sortedByMagnitude(net.w2),
+    maxW1: maxAbs(net.w1), maxW2: maxAbs(net.w2) });
+  $('neuron').max = net.nH - 1; $('neuron').value = 0;
+  $('app').hidden = false;
+  $('status').textContent = `${label}: ${net.nIn} → ${net.nH} → 1`;
+  $('status').className = 'muted';
+  update();
+}
+
+// ---- drawing ----
+const sign = v => (v >= 0 ? css('--teal') : css('--coral'));
+
+function layout(W, H) {
+  const gap = 6, pitch = (H - 24 - 11 * gap) / 96, bx = 44;
+  const grid = Math.min(16, (H - 40) / 16), gx = W / 2 - 8 * grid, gy = (H - 16 * grid) / 2;
+  return {
+    pitch, grid, gx, gy, out: [W - 70, H / 2],
+    inPos: f => { const p = f >> 6, sq = f & 63;
+      return [bx + ((sq & 7) + .5) * pitch, 12 + p * (8 * pitch + gap) + (7 - (sq >> 3) + .5) * pitch]; },
+    hPos: h => [gx + ((h & 15) + .5) * grid, gy + ((h >> 4) + .5) * grid],
+    bx,
+  };
+}
+
+function line(ctx, a, b, w, m) {
+  ctx.strokeStyle = sign(w); ctx.globalAlpha = 0.12 + 0.85 * m; ctx.lineWidth = 0.4 + 2.2 * m;
+  ctx.beginPath(); ctx.moveTo(...a); ctx.lineTo(...b); ctx.stroke();
+}
+
+function drawGraph() {
+  const cv = $('graph'), dpr = devicePixelRatio || 1;
+  const W = cv.clientWidth, H = cv.clientHeight;
+  cv.width = W * dpr; cv.height = H * dpr;
+  const ctx = cv.getContext('2d'); ctx.scale(dpr, dpr);
+  const { net, k, sel, act, feats } = state, nH = net.nH, L = layout(W, H);
+  state.L = L;
+  const muted = css('--muted'), fg = css('--fg'), glow = css('--glow');
+
+  // input dots + labels
+  ctx.font = '11px system-ui'; ctx.textBaseline = 'middle';
+  for (let p = 0; p < 12; p++) {
+    ctx.fillStyle = muted; ctx.globalAlpha = 1; ctx.fillText(PIECES[p], 12, L.inPos(p * 64 + 32)[1] - L.pitch);
+    for (let sq = 0; sq < 64; sq++) {
+      const [x, y] = L.inPos(p * 64 + sq);
+      ctx.beginPath(); ctx.arc(x, y, L.pitch * 0.28, 0, 7); ctx.fillStyle = muted; ctx.globalAlpha = 0.35; ctx.fill();
+    }
+  }
+  // strongest input->hidden connections, then hidden->output
+  for (let i = 0; i < Math.min(k, state.ordIn.length); i++) {
+    const idx = state.ordIn[i], w = net.w1[idx];
+    line(ctx, L.inPos((idx / nH) | 0), L.hPos(idx % nH), w, Math.abs(w) / state.maxW1);
+  }
+  for (let i = 0; i < Math.min(k, nH); i++) {
+    const h = state.ordOut[i], w = net.w2[h];
+    line(ctx, L.hPos(h), L.out, w, Math.abs(w) / state.maxW2);
+  }
+  // selected neuron: its 48 strongest inputs
+  const mine = Array.from({ length: 768 }, (_, f) => f).sort((a, b) => Math.abs(net.w1[b * nH + sel]) - Math.abs(net.w1[a * nH + sel]));
+  for (const f of mine.slice(0, 48)) { const w = net.w1[f * nH + sel]; line(ctx, L.inPos(f), L.hPos(sel), w, Math.max(0.4, Math.abs(w) / state.maxW1)); }
+  // active input squares
+  ctx.globalAlpha = 1; ctx.fillStyle = fg;
+  for (const f of feats) { const [x, y] = L.inPos(f); ctx.beginPath(); ctx.arc(x, y, L.pitch * 0.42, 0, 7); ctx.fill(); }
+  // hidden neurons with glow by activation
+  for (let h = 0; h < nH; h++) {
+    const [x, y] = L.hPos(h), a = act[h];
+    ctx.beginPath(); ctx.arc(x, y, L.grid * 0.32, 0, 7);
+    ctx.globalAlpha = 0.3 + 0.7 * a; ctx.fillStyle = a > 0.02 ? glow : muted;
+    ctx.shadowColor = glow; ctx.shadowBlur = a > 0.02 ? 16 * a : 0; ctx.fill(); ctx.shadowBlur = 0;
+  }
+  const [sx, sy] = L.hPos(sel);
+  ctx.globalAlpha = 1; ctx.strokeStyle = fg; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(sx, sy, L.grid * 0.5, 0, 7); ctx.stroke();
+  // output node
+  ctx.beginPath(); ctx.arc(...L.out, 14, 0, 7); ctx.fillStyle = sign(state.out); ctx.fill();
+  ctx.fillStyle = fg; ctx.textAlign = 'center'; ctx.fillText(state.out.toFixed(2), L.out[0], L.out[1] + 28); ctx.textAlign = 'start';
+  ctx.globalAlpha = 1;
+}
+
+function buildBoards() {
+  $('boards').innerHTML = [...PIECES].map((c, p) =>
+    `<figure><canvas width="192" height="192" data-p="${p}"></canvas><figcaption>${p < 6 ? 'white' : 'black'} ${c.toUpperCase()}</figcaption></figure>`).join('');
+}
+
+function drawBoards() {
+  const { net, sel, feats } = state, nH = net.nH;
+  let m = 1e-9;
+  for (let f = 0; f < 768; f++) m = Math.max(m, Math.abs(net.w1[f * nH + sel]));
+  const on = new Set(feats), teal = css('--teal'), coral = css('--coral'), line_ = css('--line'), fg = css('--fg');
+  for (const cv of document.querySelectorAll('#boards canvas')) {
+    const p = +cv.dataset.p, ctx = cv.getContext('2d'), c = 24;
+    ctx.clearRect(0, 0, 192, 192);
+    for (let sq = 0; sq < 64; sq++) {
+      const x = (sq & 7) * c, y = (7 - (sq >> 3)) * c, w = net.w1[(p * 64 + sq) * nH + sel];
+      ctx.globalAlpha = 1; ctx.fillStyle = line_; ctx.fillRect(x, y, c, c);
+      ctx.globalAlpha = Math.abs(w) / m; ctx.fillStyle = w >= 0 ? teal : coral; ctx.fillRect(x, y, c, c);
+      ctx.globalAlpha = 1; ctx.strokeStyle = css('--panel'); ctx.lineWidth = 1; ctx.strokeRect(x + .5, y + .5, c - 1, c - 1);
+      if (on.has(p * 64 + sq)) { ctx.strokeStyle = fg; ctx.lineWidth = 2; ctx.strokeRect(x + 3, y + 3, c - 6, c - 6); }
+    }
+  }
+  $('ninfo').innerHTML = `neuron <b>${sel}</b> · bias ${net.b1[sel].toFixed(3)} · pre-act ${state.acc[sel].toFixed(3)} · act ${state.act[sel].toFixed(3)} · out weight ${net.w2[sel].toFixed(3)} · max |w| ${m.toFixed(3)}`;
+}
+
+function drawContrib() {
+  const { net, act } = state;
+  const rows = Array.from({ length: net.nH }, (_, h) => [h, act[h] * net.w2[h]])
+    .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 8);
+  $('contrib').innerHTML = rows.map(([h, c]) =>
+    `<tr data-h="${h}"><td>#${h}</td><td>act ${act[h].toFixed(2)}</td><td class="${c >= 0 ? 'pos' : 'neg'}">${c >= 0 ? '+' : ''}${c.toFixed(3)}</td></tr>`).join('');
+}
+
+function update() {
+  forward();
+  $('out').textContent = (state.out >= 0 ? '+' : '') + state.out.toFixed(4);
+  $('out').className = state.out >= 0 ? 'pos' : 'neg';
+  $('neuron').value = state.sel;
+  drawGraph(); drawBoards(); drawContrib();
+}
+
+function setFen() {
+  try { state.feats = parseFen($('fen').value); $('fenerr').textContent = ''; }
+  catch (e) { $('fenerr').textContent = e.message; return; }
+  if (state.net) update();
+}
+
+// ---- wiring ----
+function selectNeuron(h) { state.sel = (h + state.net.nH) % state.net.nH; update(); }
+
+$('demo').onclick = () => setNet(NetIO.demo(1), 'Demo net');
+$('file').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try { setNet(NetIO.parse(await f.arrayBuffer()), f.name); }
+  catch (err) { $('status').textContent = `${f.name}: ${err.message}`; $('status').className = 'err'; }
+};
+$('fen').oninput = setFen;
+$('actfn').onchange = () => state.net && update();
+$('topk').oninput = e => { state.k = +e.target.value; $('topkv').textContent = state.k; drawGraph(); };
+$('neuron').oninput = e => selectNeuron(+e.target.value);
+$('prev').onclick = () => selectNeuron(state.sel - 1);
+$('next').onclick = () => selectNeuron(state.sel + 1);
+$('contrib').onclick = e => { const tr = e.target.closest('tr'); if (tr) selectNeuron(+tr.dataset.h); };
+$('graph').onclick = e => {
+  const r = e.target.getBoundingClientRect(), L = state.L;
+  const col = Math.floor((e.clientX - r.left - L.gx) / L.grid), row = Math.floor((e.clientY - r.top - L.gy) / L.grid);
+  if (col >= 0 && col < 16 && row >= 0 && row < 16) selectNeuron(row * 16 + col);
+};
+document.onkeydown = e => {
+  if (!state.net || /INPUT|SELECT/.test(document.activeElement.tagName) && document.activeElement.type !== 'range') return;
+  if (e.key === 'ArrowLeft') selectNeuron(state.sel - 1); else if (e.key === 'ArrowRight') selectNeuron(state.sel + 1);
+};
+$('theme').onclick = () => {
+  const r = document.documentElement;
+  r.dataset.theme = r.dataset.theme === 'light' ? 'dark' : 'light';
+  if (state.net) update();
+};
+addEventListener('resize', () => state.net && drawGraph());
+
+document.documentElement.dataset.theme = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+$('fen').value = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+buildBoards(); setFen();
+</script>
+</body>
+</html>

@@ -4,6 +4,9 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### Phase 2 step 2: principal variation search (bench 3701041 → 1613766)
+- Iterative deepening (already present) now searches every move after the first with a null window and re-searches only when it beats alpha, at the root and in the tree. Same root scores at fixed depth, fewer nodes.
+
 ### Phase 2 step 1: tapered evaluation with piece-square tables (bench 3251662 → 3701041)
 - Middlegame/endgame material and piece-square values blended by game phase (N=B=1, R=2, Q=4, max 24). Tables are built from simple shapes: centrality for minor pieces/queen/endgame king, pawn advancement, rook on 7th, castled king shelter.
 - Tests: colour-flip symmetry, central knight > rim knight, advanced pawn bonus.

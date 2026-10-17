@@ -108,16 +108,9 @@ fn alpha_beta(
     // In-place sort captures before quiets (zero heap allocation)
     moves.moves[..moves.count].sort_by_key(|a| std::cmp::Reverse(a.is_capture()));
 
-    for &m in moves.as_slice() {
+    for (i, &m) in moves.as_slice().iter().enumerate() {
         let undo = board.make_move(m);
-        let score = -alpha_beta(
-            board,
-            depth - 1,
-            ply + 1,
-            -beta,
-            -alpha,
-            ctx,
-        );
+        let score = pvs_child(board, depth - 1, ply + 1, alpha, beta, i == 0, ctx);
         board.unmake_move(m, &undo);
 
         if ctx.stop_flag.load(Ordering::Relaxed) {
@@ -133,6 +126,29 @@ fn alpha_beta(
     }
 
     alpha
+}
+
+/// Principal variation search for one child (already made on `board`), from the parent's view:
+/// the first move gets the full window, later moves a null window that is re-searched
+/// only if it beats alpha.
+fn pvs_child(
+    board: &mut Board,
+    depth: usize,
+    ply: usize,
+    alpha: i32,
+    beta: i32,
+    first: bool,
+    ctx: &mut SearchContext,
+) -> i32 {
+    if first {
+        return -alpha_beta(board, depth, ply, -beta, -alpha, ctx);
+    }
+    let score = -alpha_beta(board, depth, ply, -alpha - 1, -alpha, ctx);
+    if score > alpha && score < beta {
+        -alpha_beta(board, depth, ply, -beta, -alpha, ctx)
+    } else {
+        score
+    }
 }
 
 /// MVV-LVA key: most valuable victim first, then least valuable attacker.
@@ -280,16 +296,9 @@ pub fn search_sync(
             stats: &mut stats,
         };
 
-        for &m in &candidate_moves {
+        for (i, &m) in candidate_moves.iter().enumerate() {
             let undo = board.make_move(m);
-            let score = -alpha_beta(
-                board,
-                current_depth - 1,
-                1,
-                -beta,
-                -alpha,
-                &mut ctx,
-            );
+            let score = pvs_child(board, current_depth - 1, 1, alpha, beta, i == 0, &mut ctx);
             board.unmake_move(m, &undo);
 
             if stop_flag.load(Ordering::Relaxed) {

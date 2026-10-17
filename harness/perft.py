@@ -40,9 +40,13 @@ from refgen import Position  # noqa: E402
 
 DEFAULT_SUITE = os.path.join(HERE, "suites", "standard.epd")
 KIWIPETE = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
-MOVE_RE = re.compile(r"^\s*([a-h][1-8][a-h][1-8][nbrqNBRQ]?)\s*[:\-=]?\s*(\d[\d,_]*)(?:\s.*)?$")
-TOTAL_RE = re.compile(r"^\s*(?:nodes searched|total nodes|total|nodes)\s*[:=]?\s*(\d[\d,_]*)(?:\s.*)?$",
+# A count is plain digits or digit groups of three separated by , _ . or space;
+# any text after it must start with a space and a non-digit ("20 (3 ms)").
+NUM = r"(\d{1,3}(?:[,_. ]\d{3})+|\d+)(?:\s+\D.*)?"
+MOVE_RE = re.compile(r"^\s*([a-h][1-8][a-h][1-8][nbrqNBRQ]?)\s*[:\-=]?\s*" + NUM + "$")
+TOTAL_RE = re.compile(r"^\s*(?:nodes searched|total nodes|total|nodes)\s*[:=]?\s*" + NUM + "$",
                       re.IGNORECASE)
+CPW_POS4 = "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1"
 # Probes run before the suite; expected counts come from refgen at run time.
 PROBES = (
     ("position startpos", "startpos", [], 1),
@@ -50,6 +54,7 @@ PROBES = (
      ["e2e4", "a7a6", "e4e5", "d7d5"], 2),
     ("position fen moves (castling, capture-promotion)", KIWIPETE,
      ["e1g1", "h3g2", "d5d6", "g2f1q"], 2),
+    ("position fen moves (underpromotion)", CPW_POS4, ["g1h1", "b2a1n"], 2),
 )
 
 Divide = collections.namedtuple("Divide", "counts dups total elapsed unparsed")
@@ -64,7 +69,7 @@ class BisectError(Exception):
 
 
 def num(s):
-    return int(s.replace(",", "").replace("_", ""))
+    return int(re.sub(r"[,_. ]", "", s))
 
 
 def fmt(n):

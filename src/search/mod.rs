@@ -1,19 +1,22 @@
 pub mod evaluate;
 pub mod time;
+pub mod tt;
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 use std::time::Instant;
 
 use crate::board::Board;
 use crate::movegen::types::{Move, MoveList};
 use crate::perft::calculate_nps;
 use crate::search::evaluate::{evaluate, piece_value};
-use crate::types::PieceType;
 use crate::search::time::TimeLimits;
+use crate::search::tt::{Bound, TranspositionTable};
+use crate::types::PieceType;
 
 pub const MATE_SCORE: i32 = 30000;
 pub const MATE_THRESHOLD: i32 = 25000;
+const INF: i32 = 32000;
+const MAX_PLY: usize = 128;
 
 #[derive(Clone, Debug, Default)]
 pub struct SearchLimits {
@@ -36,16 +39,13 @@ pub struct SearchResult {
 #[derive(Clone, Debug)]
 pub struct SearchInfo {
     pub depth: usize,
+    pub seldepth: usize,
     pub score_str: String,
     pub nodes: u64,
     pub nps: u64,
     pub time_ms: u64,
-    pub pv_move: Move,
-}
-
-struct SearchStats {
-    nodes: u64,
-    start_time: Instant,
+    pub hashfull: u64,
+    pub pv: Vec<Move>,
 }
 
 /// Formats evaluation score for UCI info output:
@@ -62,79 +62,6 @@ pub fn format_score(score: i32) -> String {
     }
 }
 
-struct SearchContext<'a> {
-    stop_flag: &'a AtomicBool,
-    limits: &'a SearchLimits,
-    stats: &'a mut SearchStats,
-}
-
-/// Recursively evaluates positions using alpha-beta pruning.
-/// Zero heap allocations in recursion.
-fn alpha_beta(
-    board: &mut Board,
-    depth: usize,
-    ply: usize,
-    mut alpha: i32,
-    beta: i32,
-    ctx: &mut SearchContext,
-) -> i32 {
-    ctx.stats.nodes += 1;
-
-    // Periodic time and node limit check (every 1024 nodes)
-    if (ctx.stats.nodes & 1023) == 0 && should_stop(ctx) {
-        return 0;
-    }
-
-    if depth == 0 {
-        return quiescence(board, alpha, beta, ctx);
-    }
-
-    // Threefold repetition or 50-move rule
-    if board.halfmove_clock >= 100 || board.is_repetition() {
-        return 0;
-    }
-
-    let mut moves = MoveList::new();
-    board.generate_legal_moves(&mut moves);
-
-    if moves.is_empty() {
-        if board.is_in_check() {
-            return -MATE_SCORE + (ply as i32);
-        } else {
-            return 0; // Stalemate
-        }
-    }
-
-    // In-place sort captures before quiets (zero heap allocation)
-    moves.moves[..moves.count].sort_by_key(|a| std::cmp::Reverse(a.is_capture()));
-
-    for &m in moves.as_slice() {
-        let undo = board.make_move(m);
-        let score = -alpha_beta(
-            board,
-            depth - 1,
-            ply + 1,
-            -beta,
-            -alpha,
-            ctx,
-        );
-        board.unmake_move(m, &undo);
-
-        if ctx.stop_flag.load(Ordering::Relaxed) {
-            return 0;
-        }
-
-        if score >= beta {
-            return beta;
-        }
-        if score > alpha {
-            alpha = score;
-        }
-    }
-
-    alpha
-}
-
 /// MVV-LVA key: most valuable victim first, then least valuable attacker.
 fn mvv_lva(board: &Board, m: Move) -> i32 {
     let victim = if m.is_en_passant() {
@@ -146,205 +73,358 @@ fn mvv_lva(board: &Board, m: Move) -> i32 {
     piece_value(victim) * 8 - attacker.index() as i32
 }
 
-/// Captures-only search at the horizon so the score does not depend on who made the
-/// last capture (otherwise odd and even depths flip between winning and losing material).
-fn quiescence(board: &mut Board, mut alpha: i32, beta: i32, ctx: &mut SearchContext) -> i32 {
-    ctx.stats.nodes += 1;
-    if (ctx.stats.nodes & 1023) == 0 && should_stop(ctx) {
-        return 0;
+/// Moves the highest-scored remaining move to `i` (lazy selection sort, no allocation).
+#[inline(always)]
+fn pick_move(moves: &mut [Move], scores: &mut [i32], i: usize) {
+    let mut best = i;
+    for j in i + 1..moves.len() {
+        if scores[j] > scores[best] {
+            best = j;
+        }
+    }
+    moves.swap(i, best);
+    scores.swap(i, best);
+}
+
+/// Per-search state. Heap parts are allocated once per `go`, never inside the tree.
+struct Searcher<'a> {
+    board: &'a mut Board,
+    tt: &'a mut TranspositionTable,
+    limits: &'a SearchLimits,
+    stop: &'a AtomicBool,
+    start: Instant,
+    nodes: u64,
+    seldepth: usize,
+    killers: [[Move; 2]; MAX_PLY],
+    history: Box<[[[i32; 64]; 64]; 2]>,
+    pv: Box<[[Move; MAX_PLY]; MAX_PLY]>,
+    pv_len: [usize; MAX_PLY],
+}
+
+impl Searcher<'_> {
+    fn should_stop(&mut self) -> bool {
+        if (self.nodes & 1023) == 0 {
+            let out_of_time = self
+                .limits
+                .time_limits
+                .hard_limit
+                .is_some_and(|hard| self.start.elapsed() >= hard);
+            let out_of_nodes = self.limits.nodes.is_some_and(|max| self.nodes >= max);
+            if out_of_time || out_of_nodes {
+                self.stop.store(true, Ordering::Relaxed);
+            }
+        }
+        self.stop.load(Ordering::Relaxed)
     }
 
-    let stand_pat = evaluate(board);
-    if stand_pat >= beta {
-        return beta;
+    /// Any earlier occurrence since the last irreversible move counts as a draw inside the search.
+    fn is_repetition(&self) -> bool {
+        let h = &self.board.history;
+        let key = self.board.zobrist_hash();
+        let limit = h.len().saturating_sub(self.board.halfmove_clock() as usize);
+        (limit..h.len()).rev().skip(1).step_by(2).any(|i| h[i].zobrist_hash == key)
     }
-    alpha = alpha.max(stand_pat);
 
-    let mut moves = MoveList::new();
-    board.generate_legal_moves(&mut moves);
-    let captures = &mut moves.moves[..moves.count];
-    captures.sort_by_key(|&m| std::cmp::Reverse(if m.is_capture() { mvv_lva(board, m) } else { i32::MIN }));
+    fn negamax(&mut self, mut depth: i32, ply: usize, mut alpha: i32, mut beta: i32) -> i32 {
+        self.pv_len[ply] = ply;
+        let pv_node = beta - alpha > 1;
 
-    for &m in captures.iter().take_while(|m| m.is_capture()) {
-        let undo = board.make_move(m);
-        let score = -quiescence(board, -beta, -alpha, ctx);
-        board.unmake_move(m, &undo);
+        if ply > 0 {
+            if self.board.halfmove_clock() >= 100 || self.is_repetition() {
+                return 0;
+            }
+            // Mate distance pruning
+            alpha = alpha.max(-MATE_SCORE + ply as i32);
+            beta = beta.min(MATE_SCORE - ply as i32 - 1);
+            if alpha >= beta {
+                return alpha;
+            }
+        }
 
-        if ctx.stop_flag.load(Ordering::Relaxed) {
+        let in_check = self.board.is_in_check();
+        if in_check {
+            depth += 1;
+        }
+        if depth <= 0 {
+            return self.quiescence(ply, alpha, beta);
+        }
+        self.nodes += 1;
+        if self.should_stop() {
             return 0;
         }
-        if score >= beta {
-            return beta;
+        if ply >= MAX_PLY - 1 {
+            return evaluate(self.board);
         }
-        alpha = alpha.max(score);
+
+        let key = self.board.zobrist_hash();
+        let mut tt_move = Move::NULL;
+        if let Some(e) = self.tt.probe(key, ply) {
+            tt_move = e.mv;
+            let score = e.score as i32;
+            if !pv_node
+                && e.depth as i32 >= depth
+                && match e.bound {
+                    Bound::Exact => true,
+                    Bound::Lower => score >= beta,
+                    Bound::Upper => score <= alpha,
+                }
+            {
+                return score;
+            }
+        }
+
+        let mut list = MoveList::new();
+        self.board.generate_legal_moves(&mut list);
+        if list.is_empty() {
+            return if in_check { -MATE_SCORE + ply as i32 } else { 0 };
+        }
+
+        let n = list.count;
+        let stm = self.board.side_to_move.index();
+        let mut scores = [0i32; 256];
+        for (i, &m) in list.moves[..n].iter().enumerate() {
+            scores[i] = if m == tt_move {
+                2_000_000
+            } else if m.is_capture() {
+                1_000_000 + mvv_lva(self.board, m)
+            } else if m.promotion_piece() == Some(PieceType::Queen) {
+                950_000
+            } else if m == self.killers[ply][0] {
+                900_000
+            } else if m == self.killers[ply][1] {
+                800_000
+            } else {
+                self.history[stm][m.from_sq() as usize][m.to_sq() as usize]
+            };
+        }
+
+        let original_alpha = alpha;
+        let mut best_score = -INF;
+        let mut best_move = Move::NULL;
+        let mut searched = 0;
+
+        for i in 0..n {
+            pick_move(&mut list.moves[..n], &mut scores[..n], i);
+            let m = list.moves[i];
+            if ply == 0 {
+                if let Some(allowed) = &self.limits.searchmoves {
+                    if !allowed.is_empty() && !allowed.contains(&m) {
+                        continue;
+                    }
+                }
+            }
+
+            let undo = self.board.make_move(m);
+            // PVS: full window for the first move, null window for the rest, re-search on improvement.
+            let score = if searched == 0 {
+                -self.negamax(depth - 1, ply + 1, -beta, -alpha)
+            } else {
+                let s = -self.negamax(depth - 1, ply + 1, -alpha - 1, -alpha);
+                if s > alpha && s < beta {
+                    -self.negamax(depth - 1, ply + 1, -beta, -alpha)
+                } else {
+                    s
+                }
+            };
+            self.board.unmake_move(m, &undo);
+            searched += 1;
+
+            if self.stop.load(Ordering::Relaxed) {
+                return 0;
+            }
+
+            if score > best_score {
+                best_score = score;
+                best_move = m;
+                if score > alpha {
+                    alpha = score;
+                    self.pv[ply][ply] = m;
+                    for j in ply + 1..self.pv_len[ply + 1] {
+                        self.pv[ply][j] = self.pv[ply + 1][j];
+                    }
+                    self.pv_len[ply] = self.pv_len[ply + 1].max(ply + 1);
+                    if score >= beta {
+                        if !m.is_capture() {
+                            if self.killers[ply][0] != m {
+                                self.killers[ply][1] = self.killers[ply][0];
+                                self.killers[ply][0] = m;
+                            }
+                            let h = &mut self.history[stm][m.from_sq() as usize][m.to_sq() as usize];
+                            *h = (*h + depth * depth).min(700_000);
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+
+        let bound = if best_score >= beta {
+            Bound::Lower
+        } else if alpha > original_alpha {
+            Bound::Exact
+        } else {
+            Bound::Upper
+        };
+        let stored_move = if bound == Bound::Upper { Move::NULL } else { best_move };
+        self.tt.store(key, stored_move, best_score, depth, bound, ply);
+        best_score
     }
-    alpha
+
+    /// Captures-only search at the horizon so the score does not depend on who made the
+    /// last capture (otherwise odd and even depths flip between winning and losing material).
+    fn quiescence(&mut self, ply: usize, mut alpha: i32, beta: i32) -> i32 {
+        self.nodes += 1;
+        self.seldepth = self.seldepth.max(ply);
+        if self.should_stop() {
+            return 0;
+        }
+
+        let stand_pat = evaluate(self.board);
+        if stand_pat >= beta || ply >= MAX_PLY - 1 {
+            return stand_pat;
+        }
+        alpha = alpha.max(stand_pat);
+
+        let mut list = MoveList::new();
+        self.board.generate_legal_moves(&mut list);
+        let n = list.count;
+        let mut scores = [0i32; 256];
+        for (i, &m) in list.moves[..n].iter().enumerate() {
+            scores[i] = if m.is_capture() { mvv_lva(self.board, m) } else { i32::MIN };
+        }
+
+        let mut best = stand_pat;
+        for i in 0..n {
+            pick_move(&mut list.moves[..n], &mut scores[..n], i);
+            let m = list.moves[i];
+            if !m.is_capture() {
+                break;
+            }
+            let undo = self.board.make_move(m);
+            let score = -self.quiescence(ply + 1, -beta, -alpha);
+            self.board.unmake_move(m, &undo);
+
+            if self.stop.load(Ordering::Relaxed) {
+                return 0;
+            }
+            if score > best {
+                best = score;
+                if score >= beta {
+                    break;
+                }
+                alpha = alpha.max(score);
+            }
+        }
+        best
+    }
 }
 
-/// Time/node limit check shared by the main search and quiescence; sets the stop flag.
-fn should_stop(ctx: &SearchContext) -> bool {
-    let out_of_time = ctx
-        .limits
-        .time_limits
-        .hard_limit
-        .is_some_and(|hard| ctx.stats.start_time.elapsed() >= hard);
-    let out_of_nodes = ctx.limits.nodes.is_some_and(|max| ctx.stats.nodes >= max);
-    if out_of_time || out_of_nodes {
-        ctx.stop_flag.store(true, Ordering::Relaxed);
-    }
-    ctx.stop_flag.load(Ordering::Relaxed)
-}
-
-/// Executes synchronous search with iterative deepening.
-/// Emits search progress via `info_callback` if provided.
+/// Executes synchronous search with iterative deepening, using a fresh 16 MB table.
 pub fn search_sync(
     board: &mut Board,
     limits: &SearchLimits,
     stop_flag: &AtomicBool,
     info_callback: Option<&dyn Fn(&SearchInfo)>,
 ) -> SearchResult {
-    let mut stats = SearchStats {
-        nodes: 0,
-        start_time: Instant::now(),
-    };
+    let mut tt = TranspositionTable::new(16);
+    search(board, limits, stop_flag, info_callback, &mut tt)
+}
 
+/// Iterative deepening with aspiration windows. Emits progress via `info_callback`.
+pub fn search(
+    board: &mut Board,
+    limits: &SearchLimits,
+    stop_flag: &AtomicBool,
+    info_callback: Option<&dyn Fn(&SearchInfo)>,
+    tt: &mut TranspositionTable,
+) -> SearchResult {
+    tt.new_search();
     let mut root_moves = MoveList::new();
     board.generate_legal_moves(&mut root_moves);
 
-    // If no legal moves, return immediately
-    if root_moves.is_empty() {
-        let score = if board.is_in_check() {
-            -MATE_SCORE
-        } else {
-            0
-        };
-
-        // If infinite or ponder, wait for stop before returning
-        if limits.infinite || limits.ponder {
-            while !stop_flag.load(Ordering::Relaxed) {
-                std::thread::sleep(std::time::Duration::from_millis(5));
-            }
-        }
-
-        return SearchResult {
-            best_move: Move::NULL,
-            score,
-            depth: 0,
-            nodes: 1,
-        };
-    }
-
-    // Filter root moves by searchmoves if requested
-    let mut candidate_moves: Vec<Move> = if let Some(ref allowed) = limits.searchmoves {
-        let filtered: Vec<Move> = root_moves
-            .as_slice()
-            .iter()
-            .copied()
-            .filter(|m| allowed.contains(m))
-            .collect();
-        if filtered.is_empty() {
-            root_moves.as_slice().to_vec()
-        } else {
-            filtered
-        }
-    } else {
-        root_moves.as_slice().to_vec()
+    let mut result = SearchResult {
+        best_move: root_moves.as_slice().first().copied().unwrap_or(Move::NULL),
+        score: if root_moves.is_empty() && board.is_in_check() { -MATE_SCORE } else { 0 },
+        depth: 0,
+        nodes: 0,
     };
 
-    let mut best_move = candidate_moves[0];
-    let mut best_score = -MATE_SCORE;
-    let mut completed_depth = 0;
-
-    let max_depth = limits.depth.unwrap_or(64);
-
-    for current_depth in 1..=max_depth {
-        let mut alpha = -32000;
-        let beta = 32000;
-        let mut depth_best_move = candidate_moves[0];
-        let mut depth_best_score = -32000;
-
-        // Order root moves: place current best_move first, then captures
-        candidate_moves.sort_by(|a, b| {
-            if *a == best_move {
-                std::cmp::Ordering::Less
-            } else if *b == best_move {
-                std::cmp::Ordering::Greater
-            } else {
-                b.is_capture().cmp(&a.is_capture())
-            }
-        });
-
-        let mut ctx = SearchContext {
-            stop_flag,
+    if !root_moves.is_empty() {
+        let mut s = Searcher {
+            board,
+            tt,
             limits,
-            stats: &mut stats,
+            stop: stop_flag,
+            start: Instant::now(),
+            nodes: 0,
+            seldepth: 0,
+            killers: [[Move::NULL; 2]; MAX_PLY],
+            history: Box::new([[[0; 64]; 64]; 2]),
+            pv: Box::new([[Move::NULL; MAX_PLY]; MAX_PLY]),
+            pv_len: [0; MAX_PLY],
         };
+        if let Some(allowed) = limits.searchmoves.as_ref().and_then(|a| a.first()) {
+            result.best_move = *allowed;
+        }
 
-        for &m in &candidate_moves {
-            let undo = board.make_move(m);
-            let score = -alpha_beta(
-                board,
-                current_depth - 1,
-                1,
-                -beta,
-                -alpha,
-                &mut ctx,
-            );
-            board.unmake_move(m, &undo);
+        let max_depth = limits.depth.unwrap_or(MAX_PLY - 8).min(MAX_PLY - 8);
+        for depth in 1..=max_depth {
+            s.seldepth = 0;
+            // Aspiration window around the last score from depth 4 on; widen on failure.
+            let mut delta = 25;
+            let (mut alpha, mut beta) = if depth >= 4 {
+                ((result.score - delta).max(-INF), (result.score + delta).min(INF))
+            } else {
+                (-INF, INF)
+            };
+            let score = loop {
+                let score = s.negamax(depth as i32, 0, alpha, beta);
+                if stop_flag.load(Ordering::Relaxed) {
+                    break score;
+                }
+                if score <= alpha {
+                    alpha = (score - delta).max(-INF);
+                } else if score >= beta {
+                    beta = (score + delta).min(INF);
+                } else {
+                    break score;
+                }
+                delta *= 2;
+            };
 
+            // A depth cut short by stop/limits is discarded.
             if stop_flag.load(Ordering::Relaxed) {
                 break;
             }
 
-            if score > depth_best_score {
-                depth_best_score = score;
-                depth_best_move = m;
+            result.best_move = s.pv[0][0];
+            result.score = score;
+            result.depth = depth;
+
+            let elapsed = s.start.elapsed();
+            if let Some(callback) = info_callback {
+                callback(&SearchInfo {
+                    depth,
+                    seldepth: s.seldepth.max(depth),
+                    score_str: format_score(score),
+                    nodes: s.nodes,
+                    nps: calculate_nps(s.nodes, elapsed),
+                    time_ms: elapsed.as_millis() as u64,
+                    hashfull: s.tt.hashfull(),
+                    pv: s.pv[0][..s.pv_len[0]].to_vec(),
+                });
             }
 
-            if score > alpha {
-                alpha = score;
+            if limits.nodes.is_some_and(|max| s.nodes >= max) || score.abs() > MATE_THRESHOLD && limits.depth.is_none() && !limits.infinite {
+                break;
             }
-        }
-
-        if stop_flag.load(Ordering::Relaxed) {
-            break;
-        }
-
-        best_move = depth_best_move;
-        best_score = depth_best_score;
-        completed_depth = current_depth;
-
-        let elapsed = stats.start_time.elapsed();
-        let elapsed_ms = elapsed.as_millis() as u64;
-        let nps = calculate_nps(stats.nodes, elapsed);
-        let score_str = format_score(best_score);
-
-        if let Some(callback) = info_callback {
-            let info = SearchInfo {
-                depth: current_depth,
-                score_str,
-                nodes: stats.nodes,
-                nps,
-                time_ms: elapsed_ms,
-                pv_move: best_move,
-            };
-            callback(&info);
-        }
-
-        // Check node limit
-        if let Some(max_nodes) = limits.nodes {
-            if stats.nodes >= max_nodes {
+            // Check soft time limit: the next iteration costs several times the last one,
+            // so do not start it once half the soft budget is gone.
+            if limits.time_limits.soft_limit.is_some_and(|soft| elapsed >= soft / 2) {
                 break;
             }
         }
-
-        // Check soft time limit: the next iteration costs several times the last one,
-        // so do not start it once half the soft budget is gone.
-        if let Some(soft) = limits.time_limits.soft_limit {
-            if elapsed >= soft / 2 {
-                break;
-            }
-        }
+        result.nodes = s.nodes;
     }
 
     // On infinite or ponder, wait until stop_flag is signaled before finishing
@@ -354,32 +434,7 @@ pub fn search_sync(
         }
     }
 
-    SearchResult {
-        best_move,
-        score: best_score,
-        depth: completed_depth,
-        nodes: stats.nodes,
-    }
-}
-
-/// Spawns an asynchronous search worker thread with `Arc<AtomicBool>` stop signal.
-pub fn spawn_search_worker<F>(
-    mut board: Board,
-    limits: SearchLimits,
-    stop_flag: Arc<AtomicBool>,
-    on_info: F,
-    on_complete: Box<dyn FnOnce(SearchResult) + Send + 'static>,
-) -> std::thread::JoinHandle<()>
-where
-    F: Fn(SearchInfo) + Send + Sync + 'static,
-{
-    std::thread::spawn(move || {
-        let info_cb = |info: &SearchInfo| {
-            on_info(info.clone());
-        };
-        let result = search_sync(&mut board, &limits, &stop_flag, Some(&info_cb));
-        on_complete(result);
-    })
+    result
 }
 
 #[cfg(test)]

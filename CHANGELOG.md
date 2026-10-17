@@ -4,6 +4,12 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### Quiescence search: score no longer flips with depth (bench 782700 → 3251662)
+- Cause: not a negamax sign error (eval is already side-to-move relative), but the horizon effect of a material-only search without quiescence: at odd depths the side to move made the last capture (+1.00), at even depths the opponent did (−1.00).
+- Fix: captures-only quiescence search with stand-pat and MVV-LVA ordering at depth 0.
+- Bench changes because leaf nodes now run quiescence (more nodes per depth). Bench time ~1.2 s.
+- Tests: startpos scores `cp 0` at depths 1–5; a queen-up position scores positive for White to move and negative for Black to move.
+
 ### Time management fix (bench unchanged: 782700)
 - New UCI option `Move Overhead` (default 30 ms, 0–5000), subtracted from wtime/btime/movetime before allocating.
 - Hard limit is capped at 80% of the remaining time (after overhead) whatever increment or movestogo say.

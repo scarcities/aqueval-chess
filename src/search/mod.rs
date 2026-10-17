@@ -8,7 +8,8 @@ use std::time::Instant;
 use crate::board::Board;
 use crate::movegen::types::{Move, MoveList};
 use crate::perft::calculate_nps;
-use crate::search::evaluate::evaluate;
+use crate::search::evaluate::{evaluate, piece_value};
+use crate::types::PieceType;
 use crate::search::time::TimeLimits;
 
 pub const MATE_SCORE: i32 = 30000;
@@ -80,26 +81,12 @@ fn alpha_beta(
     ctx.stats.nodes += 1;
 
     // Periodic time and node limit check (every 1024 nodes)
-    if (ctx.stats.nodes & 1023) == 0 {
-        if ctx.stop_flag.load(Ordering::Relaxed) {
-            return 0;
-        }
-        if let Some(hard) = ctx.limits.time_limits.hard_limit {
-            if ctx.stats.start_time.elapsed() >= hard {
-                ctx.stop_flag.store(true, Ordering::Relaxed);
-                return 0;
-            }
-        }
-        if let Some(max_nodes) = ctx.limits.nodes {
-            if ctx.stats.nodes >= max_nodes {
-                ctx.stop_flag.store(true, Ordering::Relaxed);
-                return 0;
-            }
-        }
+    if (ctx.stats.nodes & 1023) == 0 && should_stop(ctx) {
+        return 0;
     }
 
     if depth == 0 {
-        return evaluate(board);
+        return quiescence(board, alpha, beta, ctx);
     }
 
     // Threefold repetition or 50-move rule
@@ -146,6 +133,66 @@ fn alpha_beta(
     }
 
     alpha
+}
+
+/// MVV-LVA key: most valuable victim first, then least valuable attacker.
+fn mvv_lva(board: &Board, m: Move) -> i32 {
+    let victim = if m.is_en_passant() {
+        PieceType::Pawn
+    } else {
+        board.piece_at(m.to_sq()).map_or(PieceType::Pawn, |p| p.piece_type)
+    };
+    let attacker = board.piece_at(m.from_sq()).map_or(PieceType::Pawn, |p| p.piece_type);
+    piece_value(victim) * 8 - attacker.index() as i32
+}
+
+/// Captures-only search at the horizon so the score does not depend on who made the
+/// last capture (otherwise odd and even depths flip between winning and losing material).
+fn quiescence(board: &mut Board, mut alpha: i32, beta: i32, ctx: &mut SearchContext) -> i32 {
+    ctx.stats.nodes += 1;
+    if (ctx.stats.nodes & 1023) == 0 && should_stop(ctx) {
+        return 0;
+    }
+
+    let stand_pat = evaluate(board);
+    if stand_pat >= beta {
+        return beta;
+    }
+    alpha = alpha.max(stand_pat);
+
+    let mut moves = MoveList::new();
+    board.generate_legal_moves(&mut moves);
+    let captures = &mut moves.moves[..moves.count];
+    captures.sort_by_key(|&m| std::cmp::Reverse(if m.is_capture() { mvv_lva(board, m) } else { i32::MIN }));
+
+    for &m in captures.iter().take_while(|m| m.is_capture()) {
+        let undo = board.make_move(m);
+        let score = -quiescence(board, -beta, -alpha, ctx);
+        board.unmake_move(m, &undo);
+
+        if ctx.stop_flag.load(Ordering::Relaxed) {
+            return 0;
+        }
+        if score >= beta {
+            return beta;
+        }
+        alpha = alpha.max(score);
+    }
+    alpha
+}
+
+/// Time/node limit check shared by the main search and quiescence; sets the stop flag.
+fn should_stop(ctx: &SearchContext) -> bool {
+    let out_of_time = ctx
+        .limits
+        .time_limits
+        .hard_limit
+        .is_some_and(|hard| ctx.stats.start_time.elapsed() >= hard);
+    let out_of_nodes = ctx.limits.nodes.is_some_and(|max| ctx.stats.nodes >= max);
+    if out_of_time || out_of_nodes {
+        ctx.stop_flag.store(true, Ordering::Relaxed);
+    }
+    ctx.stop_flag.load(Ordering::Relaxed)
 }
 
 /// Executes synchronous search with iterative deepening.
@@ -360,6 +407,36 @@ mod tests {
         assert_ne!(res.best_move, Move::NULL);
         assert_eq!(res.depth, 1);
         assert!(res.nodes > 0);
+    }
+
+    fn scores_by_depth(fen: &str, depth: usize) -> Vec<String> {
+        let mut board = Board::from_fen(fen).unwrap();
+        let limits = SearchLimits {
+            depth: Some(depth),
+            ..Default::default()
+        };
+        let scores = std::cell::RefCell::new(Vec::new());
+        let cb = |info: &SearchInfo| scores.borrow_mut().push(info.score_str.clone());
+        search_sync(&mut board, &limits, &AtomicBool::new(false), Some(&cb));
+        scores.into_inner()
+    }
+
+    #[test]
+    fn test_score_does_not_flip_with_depth() {
+        // Material-only eval + quiescence: startpos is level at every depth.
+        let start = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        assert_eq!(scores_by_depth(start, 5), vec!["cp 0"; 5]);
+    }
+
+    #[test]
+    fn test_score_is_from_side_to_move() {
+        // White is a queen up (no captures available): + for White to move, - for Black to move.
+        for (stm, sign) in [("w", 1), ("b", -1)] {
+            for score in scores_by_depth(&format!("4k3/pppp4/8/8/8/8/PPPP4/3QK3 {stm} - - 0 1"), 4) {
+                let cp: i32 = score.strip_prefix("cp ").unwrap().parse().unwrap();
+                assert!(cp * sign >= 800, "{stm} to move: {score}");
+            }
+        }
     }
 
     #[test]

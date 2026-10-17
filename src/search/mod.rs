@@ -99,6 +99,9 @@ struct Searcher<'a> {
     history: Box<[[[i32; 64]; 64]; 2]>,
     pv: Box<[[Move; MAX_PLY]; MAX_PLY]>,
     pv_len: [usize; MAX_PLY],
+    /// `null_at[ply]`: the move made at `ply` was a null move (no two in a row).
+    null_at: [bool; MAX_PLY],
+    lmr: Box<[[i32; 64]; 64]>,
 }
 
 impl Searcher<'_> {
@@ -115,6 +118,13 @@ impl Searcher<'_> {
             }
         }
         self.stop.load(Ordering::Relaxed)
+    }
+
+    fn has_non_pawn_material(&self) -> bool {
+        let b = &*self.board;
+        let ours = b.colors[b.side_to_move.index()];
+        let pawns_kings = b.pieces[PieceType::Pawn.index()] | b.pieces[PieceType::King.index()];
+        (ours & !pawns_kings).is_not_empty()
     }
 
     /// Any earlier occurrence since the last irreversible move counts as a draw inside the search.
@@ -158,7 +168,8 @@ impl Searcher<'_> {
 
         let key = self.board.zobrist_hash();
         let mut tt_move = Move::NULL;
-        if let Some(e) = self.tt.probe(key, ply) {
+        let tt_hit = self.tt.probe(key, ply);
+        if let Some(e) = tt_hit {
             tt_move = e.mv;
             let score = e.score as i32;
             if !pv_node
@@ -170,6 +181,31 @@ impl Searcher<'_> {
                 }
             {
                 return score;
+            }
+        }
+
+        if !pv_node && !in_check && ply > 0 {
+            let eval = evaluate(self.board);
+
+            // Reverse futility pruning: far above beta near the leaves, assume it holds.
+            if depth <= 6 && eval - 80 * depth >= beta && beta.abs() < MATE_THRESHOLD {
+                return eval;
+            }
+
+            // Null move pruning; skipped without pieces (zugzwang) and right after a null move.
+            if depth >= 3 && eval >= beta && !self.null_at[ply - 1] && self.has_non_pawn_material() {
+                let r = 3 + depth / 4;
+                self.board.make_null_move();
+                self.null_at[ply] = true;
+                let score = -self.negamax(depth - 1 - r, ply + 1, -beta, -beta + 1);
+                self.null_at[ply] = false;
+                self.board.unmake_null_move();
+                if self.stop.load(Ordering::Relaxed) {
+                    return 0;
+                }
+                if score >= beta {
+                    return if score > MATE_THRESHOLD { beta } else { score };
+                }
             }
         }
 
@@ -214,17 +250,27 @@ impl Searcher<'_> {
                 }
             }
 
+            let quiet = !m.is_capture() && m.promotion_piece().is_none();
             let undo = self.board.make_move(m);
             // PVS: full window for the first move, null window for the rest, re-search on improvement.
             let score = if searched == 0 {
                 -self.negamax(depth - 1, ply + 1, -beta, -alpha)
             } else {
-                let s = -self.negamax(depth - 1, ply + 1, -alpha - 1, -alpha);
-                if s > alpha && s < beta {
-                    -self.negamax(depth - 1, ply + 1, -beta, -alpha)
-                } else {
-                    s
+                // Late move reductions for quiet moves that do not give check.
+                let mut r = 0;
+                if depth >= 3 && searched >= 3 && quiet && !in_check && scores[i] < 800_000 && !self.board.is_in_check() {
+                    r = self.lmr[(depth as usize).min(63)][searched.min(63)];
+                    r -= pv_node as i32;
+                    r = r.clamp(0, depth - 2);
                 }
+                let mut s = -self.negamax(depth - 1 - r, ply + 1, -alpha - 1, -alpha);
+                if s > alpha && r > 0 {
+                    s = -self.negamax(depth - 1, ply + 1, -alpha - 1, -alpha);
+                }
+                if s > alpha && s < beta {
+                    s = -self.negamax(depth - 1, ply + 1, -beta, -alpha);
+                }
+                s
             };
             self.board.unmake_move(m, &undo);
             searched += 1;
@@ -362,6 +408,12 @@ pub fn search(
             history: Box::new([[[0; 64]; 64]; 2]),
             pv: Box::new([[Move::NULL; MAX_PLY]; MAX_PLY]),
             pv_len: [0; MAX_PLY],
+            null_at: [false; MAX_PLY],
+            lmr: Box::new(std::array::from_fn(|d| {
+                std::array::from_fn(|n| {
+                    if d == 0 || n == 0 { 0 } else { (0.75 + (d as f64).ln() * (n as f64).ln() / 2.25) as i32 }
+                })
+            })),
         };
         if let Some(allowed) = limits.searchmoves.as_ref().and_then(|a| a.first()) {
             result.best_move = *allowed;

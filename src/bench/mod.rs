@@ -8,7 +8,7 @@ use crate::perft::positions::ALL_POSITIONS;
 use crate::search::{search_sync, SearchLimits};
 
 /// Default fixed search depth for the benchmark suite.
-pub const DEFAULT_BENCH_DEPTH: usize = 7;
+pub const DEFAULT_BENCH_DEPTH: usize = 12;
 
 /// Runs the standard benchmark suite across all 6 standard positions to the specified depth.
 /// Outputs benchmark statistics and returns the deterministic node count ("bench signature").

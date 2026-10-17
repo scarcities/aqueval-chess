@@ -147,7 +147,7 @@ class UciEngine:
         except OSError as e:
             raise EngineError("cannot start %s %r: %s" % (self.label, " ".join(self.argv), e))
         self.lines = queue.Queue()
-        self.dirty = False
+        self.dirty = True  # until the handshake succeeds; divide() restarts dirty engines
         threading.Thread(target=self._pump, args=(self.proc, self.lines), daemon=True).start()
         try:
             self.send("uci")
@@ -156,6 +156,7 @@ class UciEngine:
         except EngineError:
             self.kill()
             raise
+        self.dirty = False
 
     @staticmethod
     def _pump(proc, q):
@@ -172,6 +173,8 @@ class UciEngine:
 
     def send(self, cmd):
         self._log("> " + cmd)
+        if self.proc is None:
+            raise EngineError("%s is not running" % self.label)
         try:
             self.proc.stdin.write(cmd + "\n")
             self.proc.stdin.flush()
@@ -217,7 +220,7 @@ class UciEngine:
     def divide(self, fen, moves, depth, timeout=None):
         if self.dirty:
             self.kill()
-            self.start()
+            self.start()  # raises EngineError and stays dirty if the restart fails
         try:
             self.send(position_cmd(fen, moves))
             self.send("go perft %d" % depth)
@@ -270,11 +273,10 @@ class UciEngine:
             self.proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
             pass
-        for stream in (self.proc.stdin, self.proc.stdout):
-            try:
-                stream.close()
-            except (OSError, ValueError):
-                pass
+        try:  # stdout is left to the reader thread; closing it can block on its lock
+            self.proc.stdin.close()
+        except (OSError, ValueError):
+            pass
         self.proc = None
 
     close = kill

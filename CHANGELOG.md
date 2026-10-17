@@ -4,6 +4,11 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### Pruning: null move, reverse futility, LMR (bench 8415289 → 3825415) — SPRT pending
+- Null move pruning (R = 3 + depth/4, not in check, not twice in a row, needs a non-pawn piece), reverse futility pruning (depth ≤ 6, margin 80·depth), late move reductions for quiet non-checking moves (log formula, one ply less in PV nodes).
+- Kiwipete, 3 s: depth 8 → depth 14.
+- Bench depth 7 → 12 so the signature run still takes ~1 s.
+
 ### Phase 2 search core (bench 3251662 → 8415289) — SPRT pending
 - Transposition table (`Hash` option, aging, mate-score ply adjustment, cleared on `ucinewgame`), shared across moves.
 - PVS with aspiration windows from depth 4, check extension, mate distance pruning, twofold repetition inside the search.

@@ -4,6 +4,10 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### Phase 2 step 4: move ordering with TT move and MVV-LVA (bench 1400124 → 602730)
+- In the tree: TT move first, then captures by MVV-LVA, then quiet moves; at the root the previous best move first, then MVV-LVA.
+- Uses `sort_unstable_by_key` in the tree, which does not allocate (the stable sort used before could).
+
 ### Phase 2 step 3: transposition table (bench 1613766 → 1400124)
 - Single-slot table sized by `Hash` (now clamped to the advertised 1–1024 MB), aging per `go`, mate scores stored relative to the node, cleared on `ucinewgame`, kept across moves.
 - Cutoffs only at null-window nodes; stores the best move for move ordering (next step). Bench uses a fresh table per position, so the signature stays deterministic.

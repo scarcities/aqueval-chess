@@ -98,7 +98,9 @@ fn alpha_beta(
     }
 
     let key = board.zobrist_hash();
+    let mut tt_move = Move::NULL;
     if let Some(e) = ctx.tt.probe(key, ply) {
+        tt_move = e.mv;
         let score = e.score as i32;
         // Cut only at null-window nodes so the PV keeps coming from real search.
         if beta - alpha == 1
@@ -125,7 +127,8 @@ fn alpha_beta(
     }
 
     // In-place sort captures before quiets (zero heap allocation)
-    moves.moves[..moves.count].sort_by_key(|a| std::cmp::Reverse(a.is_capture()));
+    // TT move first, then captures by MVV-LVA, then quiet moves (unstable sort: no allocation).
+    moves.moves[..moves.count].sort_unstable_by_key(|&m| std::cmp::Reverse(order_key(board, m, tt_move)));
 
     let mut best_move = Move::NULL;
     for (i, &m) in moves.as_slice().iter().enumerate() {
@@ -175,6 +178,17 @@ fn pvs_child(
     }
 }
 
+/// Move ordering key: TT/best move, then captures (MVV-LVA), then quiet moves.
+fn order_key(board: &Board, m: Move, tt_move: Move) -> i32 {
+    if m == tt_move {
+        i32::MAX
+    } else if m.is_capture() {
+        1_000_000 + mvv_lva(board, m)
+    } else {
+        0
+    }
+}
+
 /// MVV-LVA key: most valuable victim first, then least valuable attacker.
 fn mvv_lva(board: &Board, m: Move) -> i32 {
     let victim = if m.is_en_passant() {
@@ -203,7 +217,7 @@ fn quiescence(board: &mut Board, mut alpha: i32, beta: i32, ctx: &mut SearchCont
     let mut moves = MoveList::new();
     board.generate_legal_moves(&mut moves);
     let captures = &mut moves.moves[..moves.count];
-    captures.sort_by_key(|&m| std::cmp::Reverse(if m.is_capture() { mvv_lva(board, m) } else { i32::MIN }));
+    captures.sort_unstable_by_key(|&m| std::cmp::Reverse(if m.is_capture() { mvv_lva(board, m) } else { i32::MIN }));
 
     for &m in captures.iter().take_while(|m| m.is_capture()) {
         let undo = board.make_move(m);
@@ -317,15 +331,7 @@ pub fn search(
         let mut depth_best_score = -32000;
 
         // Order root moves: place current best_move first, then captures
-        candidate_moves.sort_by(|a, b| {
-            if *a == best_move {
-                std::cmp::Ordering::Less
-            } else if *b == best_move {
-                std::cmp::Ordering::Greater
-            } else {
-                b.is_capture().cmp(&a.is_capture())
-            }
-        });
+        candidate_moves.sort_by_key(|&m| std::cmp::Reverse(order_key(board, m, best_move)));
 
         let mut ctx = SearchContext {
             stop_flag,

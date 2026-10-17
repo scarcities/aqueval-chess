@@ -22,7 +22,7 @@ Invariants: no heap allocation in movegen, make/unmake or search recursion; `sha
 ## Current status
 
 - **Elo estimate:** N/A (Phase 1 has no real search).
-- **Bench signature:** 3251662
+- **Bench signature:** 602730
 - **Perft 6 startpos:** see CHANGELOG.md for nps (bulk and non-bulk).
 - **Roadmap:** Phase 1 (Foundation) complete. Next: Phase 2 (Search).
 
@@ -36,7 +36,16 @@ Invariants: no heap allocation in movegen, make/unmake or search recursion; `sha
 
 ## SPRT log
 
-No SPRT runs yet. Use `scripts/run_sprt.sh` and log every result here, including failures.
+Run with `scripts/run_sprt.sh`, one test at a time, fastchess concurrency 10 (2 of 12 threads free), 8+0.08, UHO_Lichess_4852_v1. Log every result here, including failures.
+
+**Bounds:** from 2026-10-17, early Phase 2 features with large expected gains (PST, TT, move ordering, basic pruning) use `big-gainer` [0, 10]. Switch back to `gainer` [0, 5] once single changes are expected to gain less than ~20 Elo, and note the switch here.
+
+| Change | Bounds | Result | Elo | Games |
+|---|---|---|---|---|
+| Tapered eval + PST (vs Phase 1 search with quiescence) | [0, 5] | H1 accepted | +501 ± 89 | 312 |
+| PVS (vs tapered eval) | [0, 5] | H1 accepted | +80 ± 20 | 780 |
+| Transposition table (vs PVS) | [0, 10] | H1 accepted | +73 ± 27 | 452 |
+| Move ordering: TT move + MVV-LVA (vs TT) | [0, 10] | H1 accepted | +102 ± 33 | 362 |
 
 ## Future roadmap
 

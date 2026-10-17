@@ -40,9 +40,13 @@ from refgen import Position  # noqa: E402
 
 DEFAULT_SUITE = os.path.join(HERE, "suites", "standard.epd")
 KIWIPETE = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
-MOVE_RE = re.compile(r"^\s*([a-h][1-8][a-h][1-8][nbrqNBRQ]?)\s*[:\-=]?\s*(\d[\d,_]*)(?:\s.*)?$")
-TOTAL_RE = re.compile(r"^\s*(?:nodes searched|total nodes|total|nodes)\s*[:=]?\s*(\d[\d,_]*)(?:\s.*)?$",
+# A count is plain digits or digit groups of three separated by , _ . or space;
+# any text after it must start with a space and a non-digit ("20 (3 ms)").
+NUM = r"(\d{1,3}(?:[,_. ]\d{3})+|\d+)(?:\s+\D.*)?"
+MOVE_RE = re.compile(r"^\s*([a-h][1-8][a-h][1-8][nbrqNBRQ]?)\s*[:\-=]?\s*" + NUM + "$")
+TOTAL_RE = re.compile(r"^\s*(?:nodes searched|total nodes|total|nodes)\s*[:=]?\s*" + NUM + "$",
                       re.IGNORECASE)
+CPW_POS4 = "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1"
 # Probes run before the suite; expected counts come from refgen at run time.
 PROBES = (
     ("position startpos", "startpos", [], 1),
@@ -50,6 +54,7 @@ PROBES = (
      ["e2e4", "a7a6", "e4e5", "d7d5"], 2),
     ("position fen moves (castling, capture-promotion)", KIWIPETE,
      ["e1g1", "h3g2", "d5d6", "g2f1q"], 2),
+    ("position fen moves (underpromotion)", CPW_POS4, ["g1h1", "b2a1n"], 2),
 )
 
 Divide = collections.namedtuple("Divide", "counts dups total elapsed unparsed")
@@ -64,7 +69,7 @@ class BisectError(Exception):
 
 
 def num(s):
-    return int(s.replace(",", "").replace("_", ""))
+    return int(re.sub(r"[,_. ]", "", s))
 
 
 def fmt(n):
@@ -142,15 +147,16 @@ class UciEngine:
         except OSError as e:
             raise EngineError("cannot start %s %r: %s" % (self.label, " ".join(self.argv), e))
         self.lines = queue.Queue()
-        self.dirty = False
+        self.dirty = True  # until the handshake succeeds; divide() restarts dirty engines
         threading.Thread(target=self._pump, args=(self.proc, self.lines), daemon=True).start()
         try:
             self.send("uci")
             self.expect(lambda l: l == "uciok", self.startup_timeout, "uciok")
             self.sync(self.startup_timeout)
-        except EngineError:
-            self.kill()
+        except BaseException:  # also Ctrl-C / SIGTERM during the handshake: leave no orphan
+            self.kill(grace=0)
             raise
+        self.dirty = False
 
     @staticmethod
     def _pump(proc, q):
@@ -167,6 +173,8 @@ class UciEngine:
 
     def send(self, cmd):
         self._log("> " + cmd)
+        if self.proc is None:
+            raise EngineError("%s is not running" % self.label)
         try:
             self.proc.stdin.write(cmd + "\n")
             self.proc.stdin.flush()
@@ -199,7 +207,8 @@ class UciEngine:
             except EngineError as e:
                 tail = [l for l in seen if l.strip()][-4:]
                 hint = ("; no %s recognised in its output, last lines: %s"
-                        % (what, " | ".join(tail))) if tail else "; it printed nothing"
+                        % (what, " | ".join(tail))) if tail else \
+                    "; no %s within %gs, it printed nothing" % (what, timeout)
                 raise EngineError(str(e) + hint)
             seen.append(line)
             if pred(line.strip()):
@@ -212,7 +221,10 @@ class UciEngine:
     def divide(self, fen, moves, depth, timeout=None):
         if self.dirty:
             self.kill()
-            self.start()
+            try:
+                self.start()  # stays dirty if the restart fails
+            except EngineError as e:
+                raise EngineError("restart after the previous error failed: %s" % e)
         try:
             self.send(position_cmd(fen, moves))
             self.send("go perft %d" % depth)
@@ -226,7 +238,8 @@ class UciEngine:
             raise
         counts, dups, total, unparsed = {}, [], None, []
         for l in lines:
-            if l.startswith("info") or not l.strip():
+            l = l.strip()  # parse exactly what expect() matched
+            if l.startswith("info") or not l:
                 continue
             m = TOTAL_RE.match(l)
             if m:
@@ -240,9 +253,12 @@ class UciEngine:
                 counts[mv] = counts.get(mv, 0) + num(m.group(2))
             else:
                 unparsed.append(l)
+        if total is None:
+            self.dirty = True
+            raise EngineError("%s total line could not be parsed" % self.label)
         return Divide(counts, dups, total, elapsed, unparsed[:3])
 
-    def kill(self):
+    def kill(self, grace=2):
         if self.proc is None:
             return
         try:
@@ -251,7 +267,7 @@ class UciEngine:
         except (OSError, ValueError):
             pass
         try:
-            self.proc.wait(timeout=2)
+            self.proc.wait(timeout=grace)
         except subprocess.TimeoutExpired:
             pass
         if hasattr(os, "killpg"):
@@ -265,11 +281,10 @@ class UciEngine:
             self.proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
             pass
-        for stream in (self.proc.stdin, self.proc.stdout):
-            try:
-                stream.close()
-            except (OSError, ValueError):
-                pass
+        try:  # stdout is left to the reader thread; closing it can block on its lock
+            self.proc.stdin.close()
+        except (OSError, ValueError):
+            pass
         self.proc = None
 
     close = kill
@@ -287,27 +302,30 @@ class BuiltinReference:
     def close(self):
         pass
 
-
 # --------------------------------------------------------------------------
 # Bisection
 # --------------------------------------------------------------------------
+
+def unparsed_note(d):
+    return " (lines not understood: %s)" % " | ".join(d.unparsed) if d.unparsed else ""
+
 
 def check_parsed(d, who, strict):
     if d.total is None:
         raise BisectError("%s printed no total line" % who)
     if d.total > 0 and not d.counts:
-        raise BisectError("no divide lines parsed from %s output%s" % (
-            who, " (unparsed: %s)" % " | ".join(d.unparsed) if d.unparsed else ""))
-    if strict and sum(d.counts.values()) != d.total:
-        raise BisectError("%s divide sums to %s but its total says %s"
-                          % (who, fmt(sum(d.counts.values())), fmt(d.total)))
+        raise BisectError("no divide lines parsed from %s output%s" % (who, unparsed_note(d)))
+    s = sum(d.counts.values())
+    if s != d.total and (strict or d.unparsed):
+        raise BisectError("%s divide sums to %s but its total says %s%s"
+                          % (who, fmt(s), fmt(d.total), unparsed_note(d)))
 
 
 def castling_hint(missing, extra):
     pairs = {"e1g1": "e1h1", "e1c1": "e1a1", "e8g8": "e8h8", "e8c8": "e8a8"}
     if any(m in missing and pairs[m] in extra for m in pairs):
-        return ("     hint: the engine prints castling as king-takes-rook (e1h1); standard UCI "
-                "uses the king's destination (e1g1)")
+        return ("the engine prints castling as king-takes-rook (e1h1); standard UCI uses the "
+                "king's destination (e1g1)")
     return None
 
 
@@ -342,21 +360,23 @@ def bisect(engine, ref, fen, depth, expected, first_total, out):
             if ed.total != pe:
                 prev = ref_position(fen, moves[:-1]).fen()
                 if ed.total == rd.total:
-                    out("  >> state not restored: counted from the parent position the engine gives "
-                        "%s %s nodes, but set up fresh with `position ... moves` it gives %s "
-                        "(correct)." % (pm, fmt(pe), fmt(ed.total)))
-                    out("     Make/unmake does not restore some state (castling rights, en passant, "
-                        "hash, counters) or a perft cache returns stale values, somewhere in the "
-                        "subtree of the parent position.")
-                    culprit["problem"] = "state-not-restored"
+                    out("  >> wrong count from the parent, correct when set up fresh: the engine "
+                        "counts %s %s nodes below the parent position, but %s (correct) after "
+                        "`position ... moves`." % (pm, fmt(pe), fmt(ed.total)))
+                    out("     Likely causes: make/unmake does not restore some state (castling "
+                        "rights, en passant, hash, counters), a perft cache returns stale values, "
+                        "or the last-ply bulk count uses a different path than the move list%s."
+                        % (" (a candidate here, since the fresh depth is 1)" if depth == 1 else ""))
+                    culprit["problem"] = "parent-vs-fresh"
                 else:
-                    out("  >> inconsistent engine: from the parent it counts %s %s nodes, set up "
+                    out("  >> inconsistent engine: below the parent it counts %s %s nodes, set up "
                         "fresh it gives %s, the reference says %s. Check the `position ... moves` "
                         "handling and make/unmake." % (pm, fmt(pe), fmt(ed.total), fmt(rd.total)))
                     culprit["problem"] = "inconsistent"
                 out("     parent position: %s  (move %s)" % (prev, pm))
-                out("     reproduce: %s / go perft %d" % (position_cmd(fen, moves), depth))
-                culprit.update(fen=prev, moves=list(moves[:-1]), move=pm)
+                out("     compare: `%s` + `go perft %d` (line %s)  vs  `%s` + `go perft %d` (total)"
+                    % (position_cmd(fen, moves[:-1]), depth + 1, pm, position_cmd(fen, moves), depth))
+                culprit.update(fen=prev, moves=list(moves[:-1]), move=pm, depth=depth + 1)
                 return culprit
 
         missing = sorted(set(rd.counts) - set(ed.counts))
@@ -373,7 +393,7 @@ def bisect(engine, ref, fen, depth, expected, first_total, out):
                 out("     engine generates ILLEGAL move(s): %s" % " ".join(extra))
             hint = castling_hint(missing, extra)
             if hint:
-                out(hint)
+                out("     hint: " + hint)
             culprit.update(problem="move-list", missing=missing, illegal=extra,
                            duplicates=sorted(set(ed.dups)))
             return culprit
@@ -406,8 +426,8 @@ def pick_moves_to_recheck(fen, counts):
     chosen = []
     try:
         legal = ref_position(fen, []).legal_moves()
-    except (ValueError, KeyError):
-        legal = []
+    except (ValueError, KeyError, IndexError):
+        return []  # cannot classify the moves, and a broken FEN would mislead the re-check
     for kind in ("castle", "ep", "promo", "double"):
         for m in legal:
             u = Position.uci(m)
@@ -423,170 +443,258 @@ def pick_moves_to_recheck(fen, counts):
 
 
 def run_probes(engine, args, out):
-    """Return list of failure messages; raises EngineError if perft is not answered at all."""
-    failures = []
-    for title, fen, moves, depth in PROBES:
-        p = ref_position(fen, moves)
-        want = p.divide(depth)
-        d = engine.divide(fen, moves, depth, timeout=min(args.timeout, args.probe_timeout))
+    """Return a list of ("fail" | "error", message); the first probe erroring raises EngineError."""
+    results = []
+    for i, (title, fen, moves, depth) in enumerate(PROBES):
+        want = ref_position(fen, moves).divide(depth)
+        cmd = "`%s` + `go perft %d`" % (position_cmd(fen, moves), depth)
+        try:
+            d = engine.divide(fen, moves, depth, timeout=min(args.timeout, args.probe_timeout))
+        except EngineError as e:
+            if i == 0:
+                raise EngineError("probe '%s' (%s): %s" % (title, cmd, e))
+            msg = "probe  %-50s ERROR %s: %s" % (title, cmd, e)
+            out(msg)
+            results.append(("error", msg))
+            continue
         missing = sorted(set(want) - set(d.counts))
         extra = sorted(set(d.counts) - set(want))
         if d.total == sum(want.values()) and not missing and not extra:
             out("probe  %-50s ok" % title)
             continue
-        msg = "probe  %-50s FAIL  `%s` + `go perft %d` gave %s, expected %s" % (
-            title, position_cmd(fen, moves), depth, fmt(d.total), fmt(sum(want.values())))
+        msg = "probe  %-50s FAIL  %s gave %s, expected %s" % (title, cmd, fmt(d.total),
+                                                             fmt(sum(want.values())))
         if missing:
             msg += "; missing root moves: %s" % " ".join(missing[:8])
         if extra:
             msg += "; unexpected root moves: %s" % " ".join(extra[:8])
-        out(msg)
-        failures.append(msg)
-    return failures
+        hint = castling_hint(missing, extra)
+        if hint:
+            msg += "; " + hint
+        out(msg + unparsed_note(d))
+        results.append(("fail", msg))
+    return results
+
+
+def probe_reference(ref, args):
+    d = ref.divide("startpos", [], 1, timeout=min(args.timeout, args.probe_timeout))
+    if d.total != 20 or len(d.counts) != 20:
+        raise EngineError("reference gives %s nodes and %d divide lines for `position startpos` + "
+                          "`go perft 1` (expected 20 and 20)%s" % (d.total, len(d.counts),
+                                                                   unparsed_note(d)))
 
 
 def run(args, out=print):
-    suite = load_suite(args.suite)
-    if args.only:
-        wanted = [w for w in args.only.split(",") if w]
-        unknown = sorted(set(wanted) - {e["name"] for e in suite})
-        if unknown:
-            out("ERROR: unknown --only name(s): %s (known: %s)"
-                % (", ".join(unknown), ", ".join(e["name"] for e in suite)))
-            return 2
-        suite = [e for e in suite if e["name"] in wanted]
-
     state = {"passed": 0, "failed": 0, "errors": 0, "skipped": 0, "results": [], "aborted": None}
-    log = open(args.log, "w", buffering=1) if args.log else None
-    engine = ref = None
-    total_nodes, total_time = 0, 0.0
+    handles = {"engine": None, "ref": None, "log": None}
+    totals = {"nodes": 0, "time": 0.0}
+    interrupted = False
+    try:
+        return _run(args, out, state, handles, totals)
+    except BaseException as e:
+        interrupted = isinstance(e, (KeyboardInterrupt, SystemExit))
+        if state["aborted"] is None:
+            state["aborted"] = "interrupted" if interrupted else "harness error: %r" % e
+        raise
+    finally:
+        # Cleanup must finish even if more signals arrive (a second Ctrl-C, SIGTERM).
+        old = {}
+        for name in ("SIGINT", "SIGTERM", "SIGHUP"):
+            if hasattr(signal, name):
+                try:
+                    old[name] = signal.signal(getattr(signal, name), signal.SIG_IGN)
+                except (ValueError, OSError):  # not the main thread
+                    pass
+        try:
+            for key in ("engine", "ref"):
+                if handles[key] is not None:
+                    handles[key].kill(grace=0 if interrupted else 2)
+            for rec in state["results"]:
+                rec.setdefault("status", "aborted")
+            if args.json:  # before printing: a dead terminal must not cost the JSON
+                with open(args.json, "w") as f:
+                    json.dump(state, f, indent=2)
+            if handles["log"]:
+                handles["log"].close()
+            try:
+                out("")
+                out("%d passed, %d failed, %d errors, %d skipped (--max-nodes %s, --max-depth %s)"
+                    % (state["passed"], state["failed"], state["errors"], state["skipped"],
+                       fmt(args.max_nodes) if args.max_nodes else "-", args.max_depth or "-"))
+                if totals["time"] > 0:
+                    out("total %s nodes in %.2fs (%s nps wall clock, includes UCI overhead)"
+                        % (fmt(totals["nodes"]), totals["time"],
+                           fmt(int(totals["nodes"] / totals["time"]))))
+                if state["aborted"]:
+                    out("RUN ABORTED: %s" % state["aborted"])
+            except OSError:
+                pass
+        finally:
+            for name, handler in old.items():
+                signal.signal(getattr(signal, name), handler)
 
+
+def _run(args, out, state, handles, totals):
     def abort(msg):
         out("ERROR: %s" % msg)
         state["aborted"] = msg
         return 2
 
+    def engine_error(rec, label, msg):
+        out("%s ERROR  %s" % (label, msg))
+        rec.update(status="error", error=msg)
+        state["errors"] += 1
+
     try:
+        suite = load_suite(args.suite)
+    except (OSError, ValueError) as e:
+        return abort("cannot load suite: %s" % e)
+    if args.only:
+        wanted = [w for w in args.only.split(",") if w]
+        unknown = sorted(set(wanted) - {e["name"] for e in suite})
+        if unknown:
+            return abort("unknown --only name(s): %s (known: %s)"
+                         % (", ".join(unknown), ", ".join(e["name"] for e in suite)))
+        suite = [e for e in suite if e["name"] in wanted]
+    if args.log:
         try:
-            engine = UciEngine(args.engine, args.timeout, "engine", log)
+            handles["log"] = open(args.log, "w", buffering=1)
+        except OSError as e:
+            return abort("cannot open --log: %s" % e)
+    log = handles["log"]
+
+    try:
+        engine = handles["engine"] = UciEngine(args.engine, args.timeout, "engine", log,
+                                               args.startup_timeout)
+    except EngineError as e:
+        return abort(str(e))
+    if args.reference == "builtin":
+        ref = BuiltinReference()
+    elif args.reference == "none":
+        ref = None
+    else:
+        try:
+            ref = handles["ref"] = UciEngine(args.reference, args.timeout, "ref", log,
+                                             args.startup_timeout)
+            probe_reference(ref, args)
         except EngineError as e:
-            return abort(str(e))
-        if args.reference == "builtin":
-            ref = BuiltinReference()
-        elif args.reference != "none":
-            try:
-                ref = UciEngine(args.reference, args.timeout, "ref", log)
-            except EngineError as e:
-                return abort(str(e))
+            return abort("reference: %s" % e)
 
-        if not args.no_probes:
-            try:
-                fails = run_probes(engine, args, out)
-            except EngineError as e:
-                return abort("engine does not answer `go perft` correctly: %s" % e)
-            for msg in fails:
-                state["failed"] += 1
-                state["results"].append({"name": "probe", "status": "fail", "message": msg})
+    if not args.no_probes:
+        try:
+            probe_results = run_probes(engine, args, out)
+        except EngineError as e:
+            return abort("engine does not answer `go perft` correctly: %s" % e)
+        for kind, msg in probe_results:
+            state["failed" if kind == "fail" else "errors"] += 1
+            state["results"].append({"name": "probe", "status": kind, "message": msg})
 
-        consecutive_errors = 0
-        for e in suite:
-            checked_moves = False
-            for depth in sorted(e["depths"]):
-                expected = e["depths"][depth]
-                if (args.max_depth and depth > args.max_depth) or \
-                        (args.max_nodes and expected > args.max_nodes):
-                    state["skipped"] += 1
-                    continue
-                label = "%-28s D%-2d" % (e["name"], depth)
-                rec = {"name": e["name"], "fen": e["fen"], "depth": depth, "expected": expected}
-                state["results"].append(rec)
-                try:
-                    d = engine.divide(e["fen"], [], depth)
-                except EngineError as err:
-                    out("%s ERROR  %s" % (label, err))
-                    rec.update(status="error", error=str(err))
-                    state["errors"] += 1
+    consecutive_errors = 0
+    for e in suite:
+        try:
+            root_legal = {Position.uci(m) for m in ref_position(e["fen"], []).legal_moves()}
+        except (ValueError, KeyError, IndexError):
+            root_legal = None
+        checked_moves = checked_names = False
+        for depth in sorted(e["depths"]):
+            expected = e["depths"][depth]
+            if (args.max_depth and depth > args.max_depth) or \
+                    (args.max_nodes and expected > args.max_nodes):
+                state["skipped"] += 1
+                continue
+            label = "%-28s D%-2d" % (e["name"], depth)
+            rec = {"name": e["name"], "fen": e["fen"], "depth": depth, "expected": expected}
+            state["results"].append(rec)
+            try:
+                d = engine.divide(e["fen"], [], depth)
+            except EngineError as err:
+                engine_error(rec, label, str(err))
+                consecutive_errors += 1
+                if consecutive_errors >= 3:
+                    return abort("3 engine errors in a row, giving up")
+                break
+            consecutive_errors = 0
+            totals["nodes"] += d.total
+            totals["time"] += d.elapsed
+            nps = int(d.total / d.elapsed) if d.elapsed > 0 else 0
+            rec.update(nodes=d.total, seconds=round(d.elapsed, 3), nps=nps)
+            problems = []
+            if d.total != expected:
+                problems.append("total %s, expected %s (%+d)"
+                                % (fmt(d.total), fmt(expected), d.total - expected))
+            if d.total > 0 and not d.counts:
+                problems.append("no divide lines (move: count) in output" + unparsed_note(d))
+            elif sum(d.counts.values()) != d.total:
+                problems.append("divide sums to %s but total says %s%s"
+                                % (fmt(sum(d.counts.values())), fmt(d.total), unparsed_note(d)))
+            if d.dups:
+                problems.append("move(s) listed twice: %s" % " ".join(sorted(set(d.dups))))
+            if not checked_names and root_legal is not None and d.counts:
+                checked_names = True
+                missing = sorted(root_legal - set(d.counts))
+                extra = sorted(set(d.counts) - root_legal)
+                if missing or extra:
+                    problems.append("root moves differ from the reference: missing [%s], "
+                                    "unexpected [%s]%s" % (
+                                        " ".join(missing), " ".join(extra),
+                                        "; " + castling_hint(missing, extra)
+                                        if castling_hint(missing, extra) else ""))
+            if not problems and depth >= 2 and not checked_moves:
+                checked_moves = True
+                recheck_error = None
+                for mv in pick_moves_to_recheck(e["fen"], d.counts):
+                    try:
+                        sub = engine.divide(e["fen"], [mv], depth - 1)
+                    except EngineError as err:
+                        recheck_error = "`%s` + `go perft %d` failed: %s" % (
+                            position_cmd(e["fen"], [mv]), depth - 1, err)
+                        break
+                    if sub.total != d.counts[mv]:
+                        problems.append(
+                            "root divide says %s: %s, but `%s` + `go perft %d` gives %s "
+                            "(`position ... moves` handling or make/unmake state is broken)"
+                            % (mv, fmt(d.counts[mv]), position_cmd(e["fen"], [mv]), depth - 1,
+                               fmt(sub.total)))
+                        break
+                if recheck_error:
+                    engine_error(rec, label, recheck_error)
                     consecutive_errors += 1
                     if consecutive_errors >= 3:
                         return abort("3 engine errors in a row, giving up")
                     break
-                consecutive_errors = 0
-                total_nodes += d.total
-                total_time += d.elapsed
-                nps = int(d.total / d.elapsed) if d.elapsed > 0 else 0
-                rec.update(nodes=d.total, seconds=round(d.elapsed, 3), nps=nps)
-                problems = []
-                if d.total != expected:
-                    problems.append("total %s, expected %s (%+d)"
-                                    % (fmt(d.total), fmt(expected), d.total - expected))
-                if not d.counts:
-                    problems.append("no divide lines (move: count) in output")
-                elif sum(d.counts.values()) != d.total:
-                    problems.append("divide sums to %s but total says %s"
-                                    % (fmt(sum(d.counts.values())), fmt(d.total)))
-                if d.dups:
-                    problems.append("move(s) listed twice: %s" % " ".join(sorted(set(d.dups))))
-                if not problems and depth >= 2 and not checked_moves:
-                    checked_moves = True
-                    for mv in pick_moves_to_recheck(e["fen"], d.counts):
-                        try:
-                            sub = engine.divide(e["fen"], [mv], depth - 1)
-                        except EngineError as err:
-                            problems.append("`%s` + `go perft %d` failed: %s"
-                                            % (position_cmd(e["fen"], [mv]), depth - 1, err))
-                            break
-                        if sub.total != d.counts[mv]:
-                            problems.append(
-                                "root divide says %s: %s, but `%s` + `go perft %d` gives %s "
-                                "(`position ... moves` handling or make/unmake state is broken)"
-                                % (mv, fmt(d.counts[mv]), position_cmd(e["fen"], [mv]), depth - 1,
-                                   fmt(sub.total)))
-                            break
-                if not problems:
-                    out("%s ok     %15s nodes  %8.3fs  %12s nps"
-                        % (label, fmt(d.total), d.elapsed, fmt(nps)))
-                    rec["status"] = "ok"
-                    state["passed"] += 1
-                    continue
-                state["failed"] += 1
-                rec.update(status="fail", problems=problems)
-                out("%s FAIL   %s" % (label, "; ".join(problems)))
-                if d.total != expected and ref is not None:
-                    if isinstance(ref, BuiltinReference) and expected > args.bisect_budget:
-                        out("    (skipping bisection: %s nodes is too slow for the builtin "
-                            "reference; pass --reference <stockfish> or raise --bisect-budget)"
-                            % fmt(expected))
-                    else:
-                        try:
-                            rec["culprit"] = bisect(engine, ref, e["fen"], depth, expected,
-                                                    d.total, out)
-                        except Exception as err:  # noqa: BLE001 - report, never crash the run
-                            out("    bisection aborted: %s" % err)
-                break  # deeper depths of this position would fail too
-    finally:
-        for proc in (engine, ref):
-            if proc is not None:
-                proc.close()
-        out("")
-        out("%d passed, %d failed, %d errors, %d skipped (--max-nodes %s, --max-depth %s)"
-            % (state["passed"], state["failed"], state["errors"], state["skipped"],
-               fmt(args.max_nodes) if args.max_nodes else "-", args.max_depth or "-"))
-        if total_time > 0:
-            out("total %s nodes in %.2fs (%s nps wall clock, includes UCI overhead)"
-                % (fmt(total_nodes), total_time, fmt(int(total_nodes / total_time))))
-        if args.json:
-            with open(args.json, "w") as f:
-                json.dump(state, f, indent=2)
-        if log:
-            log.close()
+            if not problems:
+                out("%s ok     %15s nodes  %8.3fs  %12s nps"
+                    % (label, fmt(d.total), d.elapsed, fmt(nps)))
+                rec["status"] = "ok"
+                state["passed"] += 1
+                continue
+            state["failed"] += 1
+            rec.update(status="fail", problems=problems)
+            out("%s FAIL   %s" % (label, "; ".join(problems)))
+            if d.total != expected and ref is not None:
+                if isinstance(ref, BuiltinReference) and args.bisect_budget \
+                        and expected > args.bisect_budget:
+                    out("    (skipping bisection: %s nodes is too slow for the builtin "
+                        "reference; pass --reference <stockfish> or raise --bisect-budget)"
+                        % fmt(expected))
+                else:
+                    try:
+                        rec["culprit"] = bisect(engine, ref, e["fen"], depth, expected, d.total, out)
+                    except EngineError as err:  # the engine or a UCI reference crashed/hung
+                        out("    bisection aborted: %s" % err)
+                        rec["bisect_error"] = str(err)
+                        state["errors"] += 1
+                    except Exception as err:  # noqa: BLE001 - report, never crash the run
+                        out("    bisection aborted: %s" % err)
+                        rec["bisect_error"] = str(err)
+            break  # deeper depths of this position would fail too
 
     if state["errors"]:
         return 2
     if state["failed"]:
         return 1
     if not state["passed"]:
-        out("ERROR: nothing was tested (all entries skipped)")
-        return 2
+        return abort("nothing was tested (all entries skipped)")
     return 0
 
 
@@ -594,13 +702,19 @@ def verify_suite(args, out=print):
     """Check suite counts within the limits against the builtin generator or a UCI reference."""
     suite = load_suite(args.suite)
     if args.only:
-        wanted = set(args.only.split(","))
+        wanted = [w for w in args.only.split(",") if w]
+        unknown = sorted(set(wanted) - {e["name"] for e in suite})
+        if unknown:
+            out("ERROR: unknown --only name(s): %s" % ", ".join(unknown))
+            return 2
         suite = [e for e in suite if e["name"] in wanted]
     ref = None
     if args.reference not in ("builtin", "none"):
-        ref = UciEngine(args.reference, args.timeout, "reference")
+        ref = UciEngine(args.reference, args.timeout, "reference", None, args.startup_timeout)
     bad = skipped = checked = 0
     try:
+        if ref:
+            probe_reference(ref, args)
         for e in suite:
             for depth, expected in sorted(e["depths"].items()):
                 if (args.max_nodes and expected > args.max_nodes) or \
@@ -619,34 +733,58 @@ def verify_suite(args, out=print):
         if ref:
             ref.close()
     out("\n%d checked, %d wrong, %d skipped (over --max-nodes/--max-depth)" % (checked, bad, skipped))
+    if not checked:
+        out("ERROR: nothing was checked")
+        return 2
     return 1 if bad else 0
 
 
 def self_test(args, out=print):
     """Run the harness against the mock engine, clean and with injected bugs."""
-    mock = "%s -B %s" % (shlex.quote(sys.executable), shlex.quote(os.path.join(HERE, "mock_engine.py")))
-    cases = (  # bug, --only, max nodes, expected exit, text that must appear
-        ("", "", 60000, 0, "0 failed, 0 errors"),
-        ("ep-pin", "illegal-ep-2", 60000, 1, "engine generates ILLEGAL move(s): c4d3"),
-        ("no-underpromo", "cpw-pos4", 60000, 1,
+    import shutil
+    import tempfile
+    tmp = tempfile.mkdtemp(prefix="perft-selftest-")
+    py = "%s -B %s" % (shlex.quote(sys.executable), shlex.quote(os.path.join(HERE, "mock_engine.py")))
+    state_file = shlex.quote(os.path.join(tmp, "crashed"))
+    cases = (  # bug, --only, max nodes, reference, expected exit, text that must appear
+        ("", "", 60000, "builtin", 0, "0 failed, 0 errors"),
+        ("ep-pin", "illegal-ep-2", 60000, "builtin", 1, "engine generates ILLEGAL move(s): c4d3"),
+        ("ep-pin", "illegal-ep-2", 60000, py, 1, "engine generates ILLEGAL move(s): c4d3"),
+        ("no-underpromo", "cpw-pos4", 60000, "builtin", 1,
          "engine MISSES legal move(s): b2a1b b2a1n b2a1r b2b1b b2b1n b2b1r"),
-        ("castle-unmake", "kiwipete", 100000, 1, ">> state not restored"),
-        ("ignore-moves", "startpos", 60000, 1, "probe  position startpos moves (en passant"),
-        ("dup-moves", "startpos", 60000, 1, "engine lists move(s) more than once"),
-        ("bad-total", "startpos", 60000, 2, "no total line (e.g. 'Nodes searched: N') recognised"),
+        ("castle-unmake", "kiwipete", 100000, "builtin", 1,
+         ">> wrong count from the parent, correct when set up fresh"),
+        ("ignore-moves", "startpos", 60000, "builtin", 1,
+         "probe  position startpos moves (en passant"),
+        ("dup-moves", "startpos", 60000, "builtin", 1, "engine lists move(s) more than once"),
+        ("castle-notation", "kiwipete", 60000, "builtin", 1, "king-takes-rook"),
+        ("bad-total", "startpos", 60000, "builtin", 2,
+         "no total line (e.g. 'Nodes searched: N') recognised"),
+        ("crash-pos3", "startpos,cpw-pos3,cpw-pos4", 60000, "builtin", 2,
+         "panicked at src/movegen/mod.rs"),
+        ("crash-then-dead --state " + state_file, "cpw-pos3,cpw-pos4,cpw-pos5,cpw-pos6", 60000,
+         "builtin", 2, "3 engine errors in a row"),
+        ("hang-pos3", "cpw-pos3,cpw-pos4", 60000, "builtin", 2, "engine timed out"),
+        ("trailing-space", "startpos,kiwipete", 60000, "builtin", 0, "0 failed, 0 errors"),
     )
     ok = True
-    for bug, only, max_nodes, want_rc, want_text in cases:
-        out("== self-test: mock engine%s ==" % (" with bug " + bug if bug else ""))
-        sub = make_parser().parse_args([])
-        sub.engine = mock + (" --bug " + bug if bug else "")
-        sub.only, sub.max_nodes, sub.timeout, sub.probe_timeout = only, max_nodes, 20, 3
-        lines = []
-        rc = run(sub, out=lambda s: (lines.append(s), out("  " + s)))
-        good = rc == want_rc and want_text in "\n".join(lines)
-        out("  -> %s (exit %d, expected %d; looked for %r)\n"
-            % ("PASS" if good else "FAIL", rc, want_rc, want_text))
-        ok &= good
+    try:
+        for bug, only, max_nodes, reference, want_rc, want_text in cases:
+            out("== self-test: mock engine%s%s ==" % (" with bug " + bug.split()[0] if bug else "",
+                                                     "" if reference == "builtin" else ", mock as reference"))
+            sub = make_parser().parse_args([])
+            sub.engine = py + (" --bug " + bug if bug else "")
+            sub.only, sub.max_nodes, sub.reference = only, max_nodes, reference
+            sub.timeout, sub.probe_timeout, sub.startup_timeout = (3 if "hang" in bug else 20), 3, 10
+            lines = []
+            rc = run(sub, out=lambda s: (lines.append(s), out("  " + s)))
+            text = "\n".join(lines)
+            good = rc == want_rc and want_text in text and "Traceback" not in text
+            out("  -> %s (exit %d, expected %d; looked for %r)\n"
+                % ("PASS" if good else "FAIL", rc, want_rc, want_text))
+            ok &= good
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
     out("self-test %s" % ("PASSED" if ok else "FAILED"))
     return 0 if ok else 1
 
@@ -662,8 +800,10 @@ def make_parser():
     ap.add_argument("--reference", default="builtin",
                     help="'builtin' (default), 'none', or a UCI engine command with go perft")
     ap.add_argument("--bisect-budget", type=float, default=5e6,
-                    help="max nodes the builtin reference will divide (default 5e6)")
+                    help="max nodes the builtin reference will divide (default 5e6; 0 = no limit)")
     ap.add_argument("--timeout", type=float, default=600, help="seconds per go perft (default 600)")
+    ap.add_argument("--startup-timeout", type=float, default=30,
+                    help="seconds to wait for uciok/readyok at engine start (default 30)")
     ap.add_argument("--probe-timeout", type=float, default=30,
                     help="seconds for each startup probe (default 30)")
     ap.add_argument("--no-probes", action="store_true", help="skip the position/moves probes")
@@ -678,25 +818,43 @@ def make_parser():
 def main():
     ap = make_parser()
     args = ap.parse_args()
+
+    def usage_error(msg):
+        if args.json:  # do not leave a stale result file behind
+            try:
+                with open(args.json, "w") as f:
+                    json.dump({"passed": 0, "failed": 0, "errors": 0, "skipped": 0,
+                               "results": [], "aborted": "usage error: " + msg}, f, indent=2)
+            except OSError:
+                pass
+        ap.error(msg)
+
     for name in ("max_nodes", "bisect_budget"):
         v = getattr(args, name)
         if v != v or v in (float("inf"), float("-inf")) or v < 0:
-            ap.error("--%s must be a finite number >= 0" % name.replace("_", "-"))
+            usage_error("--%s must be a finite number >= 0" % name.replace("_", "-"))
         setattr(args, name, int(v))
-    signal.signal(signal.SIGTERM, lambda *_: sys.exit(2))  # run finally blocks, kill engines
+    for sig in ("SIGTERM", "SIGHUP"):  # run finally blocks so engines are killed
+        if hasattr(signal, sig) and signal.getsignal(getattr(signal, sig)) is not signal.SIG_IGN:
+            signal.signal(getattr(signal, sig), lambda *_: sys.exit(2))  # (keeps nohup working)
     try:
         if args.verify_suite:
             return verify_suite(args)
         if args.self_test:
             return self_test(args)
-        if not args.engine:
-            ap.error("--engine is required")
+        if not args.engine or not args.engine.strip():
+            usage_error("--engine is required")
         return run(args)
     except KeyboardInterrupt:
         print("interrupted")
         return 2
     except (OSError, ValueError, EngineError) as e:
         print("ERROR: %s" % e)
+        return 2
+    except Exception:  # a harness bug must never look like a perft mismatch (exit 1)
+        import traceback
+        traceback.print_exc()
+        print("INTERNAL ERROR in the harness (exit 2); please report the traceback above")
         return 2
 
 

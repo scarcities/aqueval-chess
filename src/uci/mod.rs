@@ -8,7 +8,8 @@ use crate::board::Board;
 use crate::movegen::types::{Move, MoveList};
 use crate::perft::{format_perft_divide, perft_divide};
 use crate::search::time::TimeManager;
-use crate::search::{search_sync, SearchInfo, SearchLimits};
+use crate::search::tt::TranspositionTable;
+use crate::search::{search, SearchInfo, SearchLimits};
 use crate::uci::options::UciOptions;
 
 struct ActiveSearch {
@@ -244,6 +245,8 @@ fn handle_setoption(options: &mut UciOptions, tokens: &[&str]) {
 pub fn run_uci<R: BufRead, W: Write + Send + 'static>(mut reader: R, writer: Arc<Mutex<W>>) {
     let mut board = Board::startpos();
     let mut options = UciOptions::new();
+    // Shared with the search thread, which locks it for the whole search.
+    let tt = Arc::new(Mutex::new(TranspositionTable::new(options.hash_mb)));
     let mut active_search: Option<ActiveSearch> = None;
 
     let mut line_buf = String::new();
@@ -321,7 +324,11 @@ pub fn run_uci<R: BufRead, W: Write + Send + 'static>(mut reader: R, writer: Arc
                 let _ = w.flush();
             }
             "setoption" => {
+                let old_hash = options.hash_mb;
                 handle_setoption(&mut options, args);
+                if options.hash_mb != old_hash {
+                    *tt.lock().unwrap() = TranspositionTable::new(options.hash_mb);
+                }
             }
             "register" => {
                 // Unsupported / free engine
@@ -334,6 +341,7 @@ pub fn run_uci<R: BufRead, W: Write + Send + 'static>(mut reader: R, writer: Arc
                     }
                 }
                 board = Board::startpos();
+                tt.lock().unwrap().clear();
             }
             "position" => {
                 if let Some(mut active) = active_search.take() {
@@ -375,6 +383,7 @@ pub fn run_uci<R: BufRead, W: Write + Send + 'static>(mut reader: R, writer: Arc
                     let thread_writer = writer.clone();
                     let mut thread_board = board.clone();
                     let thread_limits = parsed_go.limits;
+                    let thread_tt = tt.clone();
 
                     let handle = std::thread::spawn(move || {
                         let info_cb = |info: &SearchInfo| {
@@ -392,11 +401,12 @@ pub fn run_uci<R: BufRead, W: Write + Send + 'static>(mut reader: R, writer: Arc
                             let _ = w.flush();
                         };
 
-                        let result = search_sync(
+                        let result = search(
                             &mut thread_board,
                             &thread_limits,
                             &thread_stop,
                             Some(&info_cb),
+                            &mut thread_tt.lock().unwrap(),
                         );
 
                         {

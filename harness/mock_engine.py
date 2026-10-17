@@ -9,12 +9,20 @@ detects it and reports the right cause:
     castle-unmake  unmaking a king move does not restore castling rights
     ignore-moves   ignores the `moves ...` part of the position command
     dup-moves      lists the first legal move twice
+    castle-notation prints castling as king-takes-rook (e1h1)
     bad-total      prints the total as `Perft = N` (a format the harness does not know)
+    crash-pos3     panics (exit 101) on `go perft` >= 2 in CPW position 3
+    hang-pos3      never answers `go perft` >= 2 in CPW position 3 (busy loop)
+    trailing-space not a bug: correct output with a trailing space on every line
+    crash-then-dead  like crash-pos3, and every later start (marker file given by
+                   `--state PATH`) prints a banner and exits without speaking UCI
 """
 
 import os
 import sys
 import time
+
+POS3 = "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1"
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from refgen import Position  # noqa: E402
@@ -53,7 +61,10 @@ class BuggyPosition(Position):
         res = []
         for m in self.legal_moves():
             u = self.make(m)
-            res.append((self.uci(m), self.perft(depth - 1)))
+            name = self.uci(m)
+            if self.bug == "castle-notation" and m[3] == "castle":
+                name = name[:2] + ("h" if name[2] == "g" else "a") + name[3]
+            res.append((name, self.perft(depth - 1)))
             self.unmake(u)
         return res
 
@@ -81,6 +92,10 @@ def set_position(tok):
 def main():
     if "--bug" in sys.argv:
         BuggyPosition.bug = sys.argv[sys.argv.index("--bug") + 1]
+    state = sys.argv[sys.argv.index("--state") + 1] if "--state" in sys.argv else None
+    if BuggyPosition.bug == "crash-then-dead" and state and os.path.exists(state):
+        print("Quant Chess Engine v0.1.0 (no UCI)", flush=True)
+        return
     pos = BuggyPosition(START)
     for line in sys.stdin:
         tok = line.split()
@@ -101,13 +116,26 @@ def main():
                 pos = new
         elif cmd == "go" and len(tok) >= 3 and tok[1] == "perft":
             depth = max(int(tok[2]), 1)
+            if BuggyPosition.bug in ("crash-pos3", "crash-then-dead") and depth >= 2 \
+                    and pos.fen() == POS3:
+                if state:
+                    open(state, "w").close()
+                print("thread 'main' panicked at src/movegen/mod.rs:311:17:\n"
+                      "index out of bounds: the len is 64 but the index is 64", flush=True)
+                sys.exit(101)
+            if BuggyPosition.bug == "hang-pos3" and depth >= 2 and pos.fen() == POS3:
+                while True:
+                    pass
             t = time.monotonic()
             d = pos.divide_list(depth)
             ms = int((time.monotonic() - t) * 1000)
             total = sum(n for _, n in d)
+            sp = " " if BuggyPosition.bug == "trailing-space" else ""
             for mv, n in d:
-                print("%s: %d" % (mv, n))
-            if BuggyPosition.bug == "bad-total":
+                print("%s: %d%s" % (mv, n, sp))
+            if BuggyPosition.bug == "trailing-space":
+                print("\nNodes searched: %d \nTime: %d ms " % (total, ms), flush=True)
+            elif BuggyPosition.bug == "bad-total":
                 print("\nPerft = %d" % total, flush=True)
             else:
                 print("\nNodes searched: %d\nTime: %d ms\nNPS: %d"

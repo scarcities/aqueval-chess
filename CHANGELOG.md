@@ -4,6 +4,21 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### Phase 2 step 4: move ordering with TT move and MVV-LVA (bench 1400124 → 602730)
+- In the tree: TT move first, then captures by MVV-LVA, then quiet moves; at the root the previous best move first, then MVV-LVA.
+- Uses `sort_unstable_by_key` in the tree, which does not allocate (the stable sort used before could).
+
+### Phase 2 step 3: transposition table (bench 1613766 → 1400124)
+- Single-slot table sized by `Hash` (now clamped to the advertised 1–1024 MB), aging per `go`, mate scores stored relative to the node, cleared on `ucinewgame`, kept across moves.
+- Cutoffs only at null-window nodes; stores the best move for move ordering (next step). Bench uses a fresh table per position, so the signature stays deterministic.
+
+### Phase 2 step 2: principal variation search (bench 3701041 → 1613766)
+- Iterative deepening (already present) now searches every move after the first with a null window and re-searches only when it beats alpha, at the root and in the tree. Same root scores at fixed depth, fewer nodes.
+
+### Phase 2 step 1: tapered evaluation with piece-square tables (bench 3251662 → 3701041)
+- Middlegame/endgame material and piece-square values blended by game phase (N=B=1, R=2, Q=4, max 24). Tables are built from simple shapes: centrality for minor pieces/queen/endgame king, pawn advancement, rook on 7th, castled king shelter.
+- Tests: colour-flip symmetry, central knight > rim knight, advanced pawn bonus.
+
 ### Quiescence search: score no longer flips with depth (bench 782700 → 3251662)
 - Cause: not a negamax sign error (eval is already side-to-move relative), but the horizon effect of a material-only search without quiescence: at odd depths the side to move made the last capture (+1.00), at even depths the opponent did (−1.00).
 - Fix: captures-only quiescence search with stand-pat and MVV-LVA ordering at depth 0.

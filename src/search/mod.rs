@@ -1,5 +1,6 @@
 pub mod evaluate;
 pub mod time;
+pub mod tt;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -11,6 +12,7 @@ use crate::perft::calculate_nps;
 use crate::search::evaluate::{evaluate, piece_value};
 use crate::types::PieceType;
 use crate::search::time::TimeLimits;
+use crate::search::tt::{Bound, TranspositionTable};
 
 pub const MATE_SCORE: i32 = 30000;
 pub const MATE_THRESHOLD: i32 = 25000;
@@ -66,6 +68,7 @@ struct SearchContext<'a> {
     stop_flag: &'a AtomicBool,
     limits: &'a SearchLimits,
     stats: &'a mut SearchStats,
+    tt: &'a mut TranspositionTable,
 }
 
 /// Recursively evaluates positions using alpha-beta pruning.
@@ -94,6 +97,24 @@ fn alpha_beta(
         return 0;
     }
 
+    let key = board.zobrist_hash();
+    let mut tt_move = Move::NULL;
+    if let Some(e) = ctx.tt.probe(key, ply) {
+        tt_move = e.mv;
+        let score = e.score as i32;
+        // Cut only at null-window nodes so the PV keeps coming from real search.
+        if beta - alpha == 1
+            && e.depth as usize >= depth
+            && match e.bound {
+                Bound::Exact => true,
+                Bound::Lower => score >= beta,
+                Bound::Upper => score <= alpha,
+            }
+        {
+            return score;
+        }
+    }
+
     let mut moves = MoveList::new();
     board.generate_legal_moves(&mut moves);
 
@@ -106,18 +127,13 @@ fn alpha_beta(
     }
 
     // In-place sort captures before quiets (zero heap allocation)
-    moves.moves[..moves.count].sort_by_key(|a| std::cmp::Reverse(a.is_capture()));
+    // TT move first, then captures by MVV-LVA, then quiet moves (unstable sort: no allocation).
+    moves.moves[..moves.count].sort_unstable_by_key(|&m| std::cmp::Reverse(order_key(board, m, tt_move)));
 
-    for &m in moves.as_slice() {
+    let mut best_move = Move::NULL;
+    for (i, &m) in moves.as_slice().iter().enumerate() {
         let undo = board.make_move(m);
-        let score = -alpha_beta(
-            board,
-            depth - 1,
-            ply + 1,
-            -beta,
-            -alpha,
-            ctx,
-        );
+        let score = pvs_child(board, depth - 1, ply + 1, alpha, beta, i == 0, ctx);
         board.unmake_move(m, &undo);
 
         if ctx.stop_flag.load(Ordering::Relaxed) {
@@ -125,14 +141,52 @@ fn alpha_beta(
         }
 
         if score >= beta {
+            ctx.tt.store(key, m, beta, depth as i32, Bound::Lower, ply);
             return beta;
         }
         if score > alpha {
             alpha = score;
+            best_move = m;
         }
     }
 
+    let bound = if best_move == Move::NULL { Bound::Upper } else { Bound::Exact };
+    ctx.tt.store(key, best_move, alpha, depth as i32, bound, ply);
     alpha
+}
+
+/// Principal variation search for one child (already made on `board`), from the parent's view:
+/// the first move gets the full window, later moves a null window that is re-searched
+/// only if it beats alpha.
+fn pvs_child(
+    board: &mut Board,
+    depth: usize,
+    ply: usize,
+    alpha: i32,
+    beta: i32,
+    first: bool,
+    ctx: &mut SearchContext,
+) -> i32 {
+    if first {
+        return -alpha_beta(board, depth, ply, -beta, -alpha, ctx);
+    }
+    let score = -alpha_beta(board, depth, ply, -alpha - 1, -alpha, ctx);
+    if score > alpha && score < beta {
+        -alpha_beta(board, depth, ply, -beta, -alpha, ctx)
+    } else {
+        score
+    }
+}
+
+/// Move ordering key: TT/best move, then captures (MVV-LVA), then quiet moves.
+fn order_key(board: &Board, m: Move, tt_move: Move) -> i32 {
+    if m == tt_move {
+        i32::MAX
+    } else if m.is_capture() {
+        1_000_000 + mvv_lva(board, m)
+    } else {
+        0
+    }
 }
 
 /// MVV-LVA key: most valuable victim first, then least valuable attacker.
@@ -163,7 +217,7 @@ fn quiescence(board: &mut Board, mut alpha: i32, beta: i32, ctx: &mut SearchCont
     let mut moves = MoveList::new();
     board.generate_legal_moves(&mut moves);
     let captures = &mut moves.moves[..moves.count];
-    captures.sort_by_key(|&m| std::cmp::Reverse(if m.is_capture() { mvv_lva(board, m) } else { i32::MIN }));
+    captures.sort_unstable_by_key(|&m| std::cmp::Reverse(if m.is_capture() { mvv_lva(board, m) } else { i32::MIN }));
 
     for &m in captures.iter().take_while(|m| m.is_capture()) {
         let undo = board.make_move(m);
@@ -197,12 +251,25 @@ fn should_stop(ctx: &SearchContext) -> bool {
 
 /// Executes synchronous search with iterative deepening.
 /// Emits search progress via `info_callback` if provided.
+/// Runs `search` with a fresh 16 MB transposition table (bench, tests).
 pub fn search_sync(
     board: &mut Board,
     limits: &SearchLimits,
     stop_flag: &AtomicBool,
     info_callback: Option<&dyn Fn(&SearchInfo)>,
 ) -> SearchResult {
+    search(board, limits, stop_flag, info_callback, &mut TranspositionTable::new(16))
+}
+
+/// Iterative deepening search; `tt` persists between calls (UCI keeps it across moves).
+pub fn search(
+    board: &mut Board,
+    limits: &SearchLimits,
+    stop_flag: &AtomicBool,
+    info_callback: Option<&dyn Fn(&SearchInfo)>,
+    tt: &mut TranspositionTable,
+) -> SearchResult {
+    tt.new_search();
     let mut stats = SearchStats {
         nodes: 0,
         start_time: Instant::now(),
@@ -264,32 +331,18 @@ pub fn search_sync(
         let mut depth_best_score = -32000;
 
         // Order root moves: place current best_move first, then captures
-        candidate_moves.sort_by(|a, b| {
-            if *a == best_move {
-                std::cmp::Ordering::Less
-            } else if *b == best_move {
-                std::cmp::Ordering::Greater
-            } else {
-                b.is_capture().cmp(&a.is_capture())
-            }
-        });
+        candidate_moves.sort_by_key(|&m| std::cmp::Reverse(order_key(board, m, best_move)));
 
         let mut ctx = SearchContext {
             stop_flag,
             limits,
             stats: &mut stats,
+            tt: &mut *tt,
         };
 
-        for &m in &candidate_moves {
+        for (i, &m) in candidate_moves.iter().enumerate() {
             let undo = board.make_move(m);
-            let score = -alpha_beta(
-                board,
-                current_depth - 1,
-                1,
-                -beta,
-                -alpha,
-                &mut ctx,
-            );
+            let score = pvs_child(board, current_depth - 1, 1, alpha, beta, i == 0, &mut ctx);
             board.unmake_move(m, &undo);
 
             if stop_flag.load(Ordering::Relaxed) {
@@ -423,9 +476,13 @@ mod tests {
 
     #[test]
     fn test_score_does_not_flip_with_depth() {
-        // Material-only eval + quiescence: startpos is level at every depth.
+        // With quiescence, startpos stays near level at every depth (only small tempo swings,
+        // never a pawn up/down alternation).
         let start = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-        assert_eq!(scores_by_depth(start, 5), vec!["cp 0"; 5]);
+        for score in scores_by_depth(start, 5) {
+            let cp: i32 = score.strip_prefix("cp ").unwrap().parse().unwrap();
+            assert!(cp.abs() < 50, "startpos {score}");
+        }
     }
 
     #[test]

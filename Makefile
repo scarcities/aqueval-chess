@@ -1,6 +1,6 @@
 export PATH := $(HOME)/.cargo/bin:$(PATH)
 
-.PHONY: all build release test bench perft clippy clean
+.PHONY: all build release test bench perft clippy clean viz
 
 all: release
 
@@ -21,6 +21,9 @@ perft: release
 
 clippy:
 	cargo clippy --all-targets -- -D warnings
+
+viz:
+	xdg-open tools/netviz/netviz.html
 
 clean:
 	cargo clean

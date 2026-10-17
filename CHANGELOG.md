@@ -4,6 +4,10 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### Null move pruning (bench 481473 → 372854)
+- At null-window nodes with depth ≥ 3, not in check, static eval ≥ beta, a non-pawn piece on the board and no null move just before: pass the turn and search with R = 3 + depth/4; fail high if that already beats beta.
+- `Board::make_null_move` / `unmake_null_move` (clears EP, resets the halfmove clock so repetition detection never looks across it).
+
 ### Killer moves and history heuristic (bench 602730 → 481473)
 - Quiet moves that cause a beta cutoff become killers for their ply (two slots) and get depth² butterfly history ([side][from][to], capped below killer scores). Order: TT move, captures (MVV-LVA), killer 1, killer 2, quiets by history.
 - Startpos depth 8: 16.7M → 2.0M nodes.

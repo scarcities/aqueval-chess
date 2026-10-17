@@ -4,6 +4,9 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### Reverse futility pruning (bench 216428 → 116403)
+- At null-window nodes not in check with depth ≤ 6: return the static eval if it beats beta by 80·depth (not near mate scores). Static eval is now computed once per such node and shared with null move pruning.
+
 ### Late move reductions (bench 372854 → 216428)
 - From the 4th move on, at depth ≥ 3, quiet non-killer moves that do not give check (node not in check) are searched with a null window reduced by ⌊0.75 + ln(depth)·ln(index)/2.25⌋ plies (one less at PV nodes); a reduced move that beats alpha is re-searched at full depth.
 

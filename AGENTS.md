@@ -22,7 +22,7 @@ Invariants: no heap allocation in movegen, make/unmake or search recursion; `sha
 ## Current status
 
 - **Elo estimate:** N/A (Phase 1 has no real search).
-- **Bench signature:** 216428
+- **Bench signature:** 116403
 - **Perft 6 startpos:** see CHANGELOG.md for nps (bulk and non-bulk).
 - **Roadmap:** Phase 1 (Foundation) complete. Next: Phase 2 (Search).
 

@@ -145,6 +145,7 @@ fn alpha_beta(
         return 0;
     }
 
+    let in_check = board.is_in_check();
     let key = board.zobrist_hash();
     let mut tt_move = Move::NULL;
     if let Some(e) = ctx.tt.probe(key, ply) {
@@ -170,7 +171,7 @@ fn alpha_beta(
         && depth >= 3
         && !ctx.heur.null_at[ply - 1]
         && has_non_pawn_material(board)
-        && !board.is_in_check()
+        && !in_check
         && evaluate(board) >= beta
     {
         let r = 3 + depth / 4;
@@ -203,9 +204,18 @@ fn alpha_beta(
     moves.moves[..moves.count].sort_unstable_by_key(|&m| std::cmp::Reverse(heur.order_key(board, m, tt_move, ply)));
 
     let mut best_move = Move::NULL;
+    let pv_node = beta - alpha > 1;
     for (i, &m) in moves.as_slice().iter().enumerate() {
+        let quiet = !m.is_capture() && m.promotion_piece().is_none() && !ctx.heur.killers[ply].contains(&m);
         let undo = board.make_move(m);
-        let score = pvs_child(board, depth - 1, ply + 1, alpha, beta, i == 0, ctx);
+        // Late move reductions: quiet, non-checking moves late in the list get a shallower
+        // null-window search (log formula, one ply less at PV nodes).
+        let mut reduction = 0;
+        if depth >= 3 && i >= 3 && quiet && !in_check && !board.is_in_check() {
+            let r = 0.75 + (depth as f64).ln() * (i as f64).ln() / 2.25;
+            reduction = (r as usize).saturating_sub(pv_node as usize).min(depth - 2);
+        }
+        let score = pvs_child(board, depth - 1, ply + 1, alpha, beta, (i > 0).then_some(reduction), ctx);
         board.unmake_move(m, &undo);
 
         if ctx.stop_flag.load(Ordering::Relaxed) {
@@ -239,13 +249,18 @@ fn pvs_child(
     ply: usize,
     alpha: i32,
     beta: i32,
-    first: bool,
+    // None: first move, full window. Some(r): later move, null window reduced by r plies.
+    late: Option<usize>,
     ctx: &mut SearchContext,
 ) -> i32 {
-    if first {
+    let Some(reduction) = late else {
         return -alpha_beta(board, depth, ply, -beta, -alpha, ctx);
+    };
+    let mut score = -alpha_beta(board, depth - reduction, ply, -alpha - 1, -alpha, ctx);
+    // A reduced move that beats alpha is re-searched at full depth first.
+    if score > alpha && reduction > 0 {
+        score = -alpha_beta(board, depth, ply, -alpha - 1, -alpha, ctx);
     }
-    let score = -alpha_beta(board, depth, ply, -alpha - 1, -alpha, ctx);
     if score > alpha && score < beta {
         -alpha_beta(board, depth, ply, -beta, -alpha, ctx)
     } else {
@@ -414,7 +429,7 @@ pub fn search(
 
         for (i, &m) in candidate_moves.iter().enumerate() {
             let undo = board.make_move(m);
-            let score = pvs_child(board, current_depth - 1, 1, alpha, beta, i == 0, &mut ctx);
+            let score = pvs_child(board, current_depth - 1, 1, alpha, beta, (i > 0).then_some(0), &mut ctx);
             board.unmake_move(m, &undo);
 
             if stop_flag.load(Ordering::Relaxed) {

@@ -4,6 +4,9 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### Late move reductions (bench 372854 → 216428)
+- From the 4th move on, at depth ≥ 3, quiet non-killer moves that do not give check (node not in check) are searched with a null window reduced by ⌊0.75 + ln(depth)·ln(index)/2.25⌋ plies (one less at PV nodes); a reduced move that beats alpha is re-searched at full depth.
+
 ### Null move pruning (bench 481473 → 372854)
 - At null-window nodes with depth ≥ 3, not in check, static eval ≥ beta, a non-pawn piece on the board and no null move just before: pass the turn and search with R = 3 + depth/4; fail high if that already beats beta.
 - `Board::make_null_move` / `unmake_null_move` (clears EP, resets the halfmove clock so repetition detection never looks across it).

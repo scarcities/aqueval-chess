@@ -31,7 +31,7 @@ impl UciOptions {
             "hash" => {
                 if let Some(val_str) = value {
                     if let Ok(val) = val_str.trim().parse::<usize>() {
-                        self.hash_mb = val.clamp(1, 32768);
+                        self.hash_mb = val.clamp(1, 1024);
                     }
                 }
             }

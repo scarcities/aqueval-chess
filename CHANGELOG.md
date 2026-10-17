@@ -4,6 +4,10 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### Phase 2 step 3: transposition table (bench 1613766 → 1400124)
+- Single-slot table sized by `Hash` (now clamped to the advertised 1–1024 MB), aging per `go`, mate scores stored relative to the node, cleared on `ucinewgame`, kept across moves.
+- Cutoffs only at null-window nodes; stores the best move for move ordering (next step). Bench uses a fresh table per position, so the signature stays deterministic.
+
 ### Phase 2 step 2: principal variation search (bench 3701041 → 1613766)
 - Iterative deepening (already present) now searches every move after the first with a null window and re-searches only when it beats alpha, at the root and in the tree. Same root scores at fixed depth, fewer nodes.
 

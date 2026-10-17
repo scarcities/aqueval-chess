@@ -1,5 +1,6 @@
 pub mod evaluate;
 pub mod time;
+pub mod tt;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -11,6 +12,7 @@ use crate::perft::calculate_nps;
 use crate::search::evaluate::{evaluate, piece_value};
 use crate::types::PieceType;
 use crate::search::time::TimeLimits;
+use crate::search::tt::{Bound, TranspositionTable};
 
 pub const MATE_SCORE: i32 = 30000;
 pub const MATE_THRESHOLD: i32 = 25000;
@@ -66,6 +68,7 @@ struct SearchContext<'a> {
     stop_flag: &'a AtomicBool,
     limits: &'a SearchLimits,
     stats: &'a mut SearchStats,
+    tt: &'a mut TranspositionTable,
 }
 
 /// Recursively evaluates positions using alpha-beta pruning.
@@ -94,6 +97,22 @@ fn alpha_beta(
         return 0;
     }
 
+    let key = board.zobrist_hash();
+    if let Some(e) = ctx.tt.probe(key, ply) {
+        let score = e.score as i32;
+        // Cut only at null-window nodes so the PV keeps coming from real search.
+        if beta - alpha == 1
+            && e.depth as usize >= depth
+            && match e.bound {
+                Bound::Exact => true,
+                Bound::Lower => score >= beta,
+                Bound::Upper => score <= alpha,
+            }
+        {
+            return score;
+        }
+    }
+
     let mut moves = MoveList::new();
     board.generate_legal_moves(&mut moves);
 
@@ -108,6 +127,7 @@ fn alpha_beta(
     // In-place sort captures before quiets (zero heap allocation)
     moves.moves[..moves.count].sort_by_key(|a| std::cmp::Reverse(a.is_capture()));
 
+    let mut best_move = Move::NULL;
     for (i, &m) in moves.as_slice().iter().enumerate() {
         let undo = board.make_move(m);
         let score = pvs_child(board, depth - 1, ply + 1, alpha, beta, i == 0, ctx);
@@ -118,13 +138,17 @@ fn alpha_beta(
         }
 
         if score >= beta {
+            ctx.tt.store(key, m, beta, depth as i32, Bound::Lower, ply);
             return beta;
         }
         if score > alpha {
             alpha = score;
+            best_move = m;
         }
     }
 
+    let bound = if best_move == Move::NULL { Bound::Upper } else { Bound::Exact };
+    ctx.tt.store(key, best_move, alpha, depth as i32, bound, ply);
     alpha
 }
 
@@ -213,12 +237,25 @@ fn should_stop(ctx: &SearchContext) -> bool {
 
 /// Executes synchronous search with iterative deepening.
 /// Emits search progress via `info_callback` if provided.
+/// Runs `search` with a fresh 16 MB transposition table (bench, tests).
 pub fn search_sync(
     board: &mut Board,
     limits: &SearchLimits,
     stop_flag: &AtomicBool,
     info_callback: Option<&dyn Fn(&SearchInfo)>,
 ) -> SearchResult {
+    search(board, limits, stop_flag, info_callback, &mut TranspositionTable::new(16))
+}
+
+/// Iterative deepening search; `tt` persists between calls (UCI keeps it across moves).
+pub fn search(
+    board: &mut Board,
+    limits: &SearchLimits,
+    stop_flag: &AtomicBool,
+    info_callback: Option<&dyn Fn(&SearchInfo)>,
+    tt: &mut TranspositionTable,
+) -> SearchResult {
+    tt.new_search();
     let mut stats = SearchStats {
         nodes: 0,
         start_time: Instant::now(),
@@ -294,6 +331,7 @@ pub fn search_sync(
             stop_flag,
             limits,
             stats: &mut stats,
+            tt: &mut *tt,
         };
 
         for (i, &m) in candidate_moves.iter().enumerate() {

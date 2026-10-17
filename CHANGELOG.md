@@ -4,18 +4,6 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
-### Pruning: null move, reverse futility, LMR (bench 8415289 → 3825415) — SPRT pending
-- Null move pruning (R = 3 + depth/4, not in check, not twice in a row, needs a non-pawn piece), reverse futility pruning (depth ≤ 6, margin 80·depth), late move reductions for quiet non-checking moves (log formula, one ply less in PV nodes).
-- Kiwipete, 3 s: depth 8 → depth 14.
-- Bench depth 7 → 12 so the signature run still takes ~1 s.
-
-### Phase 2 search core (bench 3251662 → 8415289) — SPRT pending
-- Transposition table (`Hash` option, aging, mate-score ply adjustment, cleared on `ucinewgame`), shared across moves.
-- PVS with aspiration windows from depth 4, check extension, mate distance pruning, twofold repetition inside the search.
-- Move ordering: TT move, MVV-LVA captures, queen promotions, two killers, butterfly history.
-- `info` now prints `seldepth`, `hashfull` and the full PV.
-- Bench depth raised 5 → 7 (depth 5 now finishes in 0.1 s, too short to catch regressions). Signature changes from the new search and the new depth.
-
 ### Quiescence search: score no longer flips with depth (bench 782700 → 3251662)
 - Cause: not a negamax sign error (eval is already side-to-move relative), but the horizon effect of a material-only search without quiescence: at odd depths the side to move made the last capture (+1.00), at even depths the opponent did (−1.00).
 - Fix: captures-only quiescence search with stand-pat and MVV-LVA ordering at depth 0.

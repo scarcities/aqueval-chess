@@ -13,7 +13,7 @@ Target machine: the reference machine (Zen+, 6c/12t, AVX2, no AVX-512, slow PEXT
 | `src/perft/` | Perft with and without bulk counting, divide, the six standard positions |
 | `src/search/` | Phase 1 placeholder: iterative-deepening alpha-beta, material eval, soft/hard time limits |
 | `src/uci/` | UCI loop; search runs on its own thread so `stop`/`isready` stay responsive; `go perft N` prints divide |
-| `src/bench/` | Searches the six standard positions to depth 12; total nodes = bench signature |
+| `src/bench/` | Searches the six standard positions to depth 5; total nodes = bench signature |
 | `tests/` | Perft suites, movegen edge cases, 10k-position shakmaty cross-check, UCI subprocess tests, bench regression |
 | `harness/` | External perft harness that tests the shipped binary over UCI (see `harness/README.md`) |
 
@@ -22,7 +22,7 @@ Invariants: no heap allocation in movegen, make/unmake or search recursion; `sha
 ## Current status
 
 - **Elo estimate:** N/A (Phase 1 has no real search).
-- **Bench signature:** 3825415
+- **Bench signature:** 3251662
 - **Perft 6 startpos:** see CHANGELOG.md for nps (bulk and non-bulk).
 - **Roadmap:** Phase 1 (Foundation) complete. Next: Phase 2 (Search).
 

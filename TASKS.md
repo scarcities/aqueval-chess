@@ -23,10 +23,7 @@ Status: `todo`, `in progress`, `review`, `done`.
 | P2-01 | Only set the EP square/hash key when an enemy pawn can actually capture | [LEAD] | todo |
 | P2-02 | `unmake_move` pops its `UndoState` from history instead of taking it as a parameter | [DELEGATE] | todo |
 | P2-03 | Real ponder: on `ponderhit` switch to normal time control instead of moving at once | [LEAD] | todo |
-| P2-04 | PVS + transposition table + quiescence + killers/history ordering | [LEAD] | review (SPRT pending) |
-| P2-05 | Null move pruning, reverse futility pruning, LMR | [LEAD] | review (SPRT pending) |
-| P2-06 | SEE for capture ordering and qsearch pruning | [LEAD] | todo |
-| P2-07 | Tapered PST evaluation (temporary HCE baseline) | [LEAD] | todo |
+| P2-04 | PVS + transposition table + quiescence (start of the Phase 2 roadmap in AGENTS.md) | [LEAD] | todo |
 
 ### P2-02 spec (delegate)
 

@@ -1,0 +1,26 @@
+[package]
+name = "quant"
+version = "0.1.0"
+edition = "2021"
+authors = ["Quant Engine Team"]
+
+[lib]
+name = "quant"
+path = "src/lib.rs"
+
+[[bin]]
+name = "quant"
+path = "src/main.rs"
+
+[dependencies]
+
+[dev-dependencies]
+shakmaty = "0.27"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+debug = false
+overflow-checks = false

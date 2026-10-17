@@ -1,0 +1,121 @@
+use std::time::Duration;
+use crate::types::Color;
+
+/// Time limits computed for search.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct TimeLimits {
+    pub soft_limit: Option<Duration>,
+    pub hard_limit: Option<Duration>,
+}
+
+pub struct TimeManager;
+
+impl TimeManager {
+    /// Computes soft and hard search time limits given the clock state and parameters.
+    ///
+    /// - `movetime`: Exact time dedicated to this move (soft and hard limits equal `movetime`).
+    /// - `wtime` / `btime`: Remaining clock time in milliseconds.
+    /// - `winc` / `binc`: Clock increment in milliseconds.
+    /// - `movestogo`: Moves until next time control (defaults to 25 if sudden death).
+    pub fn calculate_limits(
+        side: Color,
+        wtime: Option<u64>,
+        btime: Option<u64>,
+        winc: Option<u64>,
+        binc: Option<u64>,
+        movestogo: Option<u64>,
+        movetime: Option<u64>,
+    ) -> TimeLimits {
+        if let Some(mt) = movetime {
+            let dur = Duration::from_millis(mt);
+            return TimeLimits {
+                soft_limit: Some(dur),
+                hard_limit: Some(dur),
+            };
+        }
+
+        let time = match side {
+            Color::White => wtime,
+            Color::Black => btime,
+        };
+
+        if let Some(remaining) = time {
+            let inc = match side {
+                Color::White => winc.unwrap_or(0),
+                Color::Black => binc.unwrap_or(0),
+            };
+
+            let moves = movestogo.unwrap_or(25).clamp(1, 50);
+
+            // Base allocation per move
+            let base = (remaining / moves) + (inc * 3 / 4);
+
+            // Safety cap: never allocate more than 80% of remaining time
+            let max_alloc = (remaining * 8) / 10;
+
+            let soft_ms = (base * 8 / 10).min(max_alloc).max(1);
+            let hard_ms = (base * 5 / 2).min(max_alloc).max(soft_ms);
+
+            TimeLimits {
+                soft_limit: Some(Duration::from_millis(soft_ms)),
+                hard_limit: Some(Duration::from_millis(hard_ms)),
+            }
+        } else {
+            TimeLimits {
+                soft_limit: None,
+                hard_limit: None,
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_movetime_limits() {
+        let limits = TimeManager::calculate_limits(
+            Color::White,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(1000),
+        );
+        assert_eq!(limits.soft_limit, Some(Duration::from_millis(1000)));
+        assert_eq!(limits.hard_limit, Some(Duration::from_millis(1000)));
+    }
+
+    #[test]
+    fn test_clock_limits() {
+        let limits = TimeManager::calculate_limits(
+            Color::White,
+            Some(60000),
+            Some(60000),
+            Some(1000),
+            Some(1000),
+            Some(30),
+            None,
+        );
+        assert!(limits.soft_limit.is_some());
+        assert!(limits.hard_limit.is_some());
+        assert!(limits.soft_limit.unwrap() <= limits.hard_limit.unwrap());
+    }
+
+    #[test]
+    fn test_no_time_limits() {
+        let limits = TimeManager::calculate_limits(
+            Color::White,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+        assert_eq!(limits.soft_limit, None);
+        assert_eq!(limits.hard_limit, None);
+    }
+}

@@ -1,0 +1,15 @@
+[package]
+name = "perft-oracle"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Standalone tool, not part of the engine crate.
+[workspace]
+
+[dependencies]
+shakmaty = "=0.27.3"
+
+[profile.release]
+opt-level = 3
+codegen-units = 1

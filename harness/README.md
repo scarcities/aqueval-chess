@@ -52,12 +52,16 @@ What a run does:
    replayed as `position fen ... moves <m>` + `go perft <d-1>` and must match
    the divide count.
 
-A crash or timeout anywhere is an error (exit 2); the engine is restarted for
-the next position, and after 3 errors in a row the run stops. Engines are
-started in their own process group and killed with it, so wrapper commands
-such as `cargo run --release --` leave no orphans, also on SIGTERM, SIGHUP and
-Ctrl-C. `--json` is always written, including for aborted runs (`"aborted"`
-says why). `--startup-timeout` (30 s) bounds the `uciok`/`readyok` handshake.
+A crash or timeout anywhere, including during bisection, is an error (exit 2);
+the engine is restarted for the next position, and after 3 errors in a row
+the run stops. Engines are started in their own process group and killed with
+it, so wrapper commands such as `cargo run --release --` leave no orphans, also
+on SIGTERM, SIGHUP and Ctrl-C (repeated signals during cleanup are ignored;
+under `nohup` hangups stay ignored). Only a SIGKILL of the harness itself can
+leave an engine behind. `--json` is always written, including for aborted runs
+and usage errors (`"aborted"` says why). `--startup-timeout` (30 s) bounds the
+`uciok`/`readyok` handshake. A harness bug prints a traceback and exits 2,
+never 1.
 
 ## Automatic bug localisation
 
@@ -111,7 +115,7 @@ producing a diagnosis.
 - On `go perft N`, print one line per root move as `<uci move>: <nodes>`
   (e.g. `e2e4: 20`; promotions lowercase like `e7e8q`; castling as `e1g1`),
   then a total line such as `Nodes searched: <n>` (also accepted: `Total: <n>`,
-  `Nodes: <n>`, optionally followed by more text). Lines after the total
+  `Nodes: <n>`, thousands separators, optionally followed by more text). Lines after the total
   (`Time:`, `NPS:`) and `info ...` lines are ignored.
 - The harness sends `isready` only after it has seen the total line and reads
   up to `readyok` to discard trailing output, so an engine may run perft on a
@@ -131,7 +135,7 @@ producing a diagnosis.
 ## Checking the harness itself
 
 ```bash
-python3 harness/perft.py --self-test      # 11 cases, about 15 s
+python3 harness/perft.py --self-test      # 13 cases, about 20 s
 python3 harness/perft.py --verify-suite   # re-derives suite counts up to --max-nodes (default 5M) with refgen; several minutes
 python3 harness/perft.py --verify-suite --reference /path/to/stockfish --max-nodes 0   # all counts, via a UCI engine
 cargo run --offline --release --manifest-path harness/oracle/Cargo.toml -- harness/suites/standard.epd
@@ -142,7 +146,8 @@ the exit code and the exact diagnosis for each: an illegal en passant capture
 through a pin (also with a UCI engine as reference), missing underpromotions,
 castling rights lost on unmake, an engine that ignores `moves`, a move listed
 twice, castling printed as `e1h1`, an unrecognised total line, a crash on one
-position, and an engine that cannot be restarted after a crash.
+position, a hang on one position, an engine that cannot be restarted after a
+crash, and (as a correct engine) output with trailing spaces.
 
 Suite format: `<FEN> ;D1 <nodes> ;D2 <nodes> ...`, with a `# name` comment
 line before each position. Deep counts come from the Chess Programming Wiki

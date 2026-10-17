@@ -56,8 +56,12 @@ def main():
             try:
                 fen = resolve(tok)
             except ValueError as e:
+                fen = None
                 print("info string %s" % e, flush=True)
         elif tok[0] == "go" and len(tok) >= 3 and tok[1] == "perft":
+            if fen is None:  # never answer for a different position than the one asked
+                print("cli_shim: last position command could not be resolved", flush=True)
+                sys.exit(1)
             r = subprocess.run(engine + ["divide", tok[2], fen], stdout=subprocess.PIPE,
                                stderr=subprocess.STDOUT, text=True, errors="replace")
             sys.stdout.write(r.stdout)

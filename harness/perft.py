@@ -153,8 +153,8 @@ class UciEngine:
             self.send("uci")
             self.expect(lambda l: l == "uciok", self.startup_timeout, "uciok")
             self.sync(self.startup_timeout)
-        except EngineError:
-            self.kill()
+        except BaseException:  # also Ctrl-C / SIGTERM during the handshake: leave no orphan
+            self.kill(grace=0)
             raise
         self.dirty = False
 
@@ -207,7 +207,8 @@ class UciEngine:
             except EngineError as e:
                 tail = [l for l in seen if l.strip()][-4:]
                 hint = ("; no %s recognised in its output, last lines: %s"
-                        % (what, " | ".join(tail))) if tail else "; it printed nothing"
+                        % (what, " | ".join(tail))) if tail else \
+                    "; no %s within %gs, it printed nothing" % (what, timeout)
                 raise EngineError(str(e) + hint)
             seen.append(line)
             if pred(line.strip()):
@@ -220,7 +221,10 @@ class UciEngine:
     def divide(self, fen, moves, depth, timeout=None):
         if self.dirty:
             self.kill()
-            self.start()  # raises EngineError and stays dirty if the restart fails
+            try:
+                self.start()  # stays dirty if the restart fails
+            except EngineError as e:
+                raise EngineError("restart after the previous error failed: %s" % e)
         try:
             self.send(position_cmd(fen, moves))
             self.send("go perft %d" % depth)
@@ -234,7 +238,8 @@ class UciEngine:
             raise
         counts, dups, total, unparsed = {}, [], None, []
         for l in lines:
-            if l.startswith("info") or not l.strip():
+            l = l.strip()  # parse exactly what expect() matched
+            if l.startswith("info") or not l:
                 continue
             m = TOTAL_RE.match(l)
             if m:
@@ -248,9 +253,12 @@ class UciEngine:
                 counts[mv] = counts.get(mv, 0) + num(m.group(2))
             else:
                 unparsed.append(l)
+        if total is None:
+            self.dirty = True
+            raise EngineError("%s total line could not be parsed" % self.label)
         return Divide(counts, dups, total, elapsed, unparsed[:3])
 
-    def kill(self):
+    def kill(self, grace=2):
         if self.proc is None:
             return
         try:
@@ -259,7 +267,7 @@ class UciEngine:
         except (OSError, ValueError):
             pass
         try:
-            self.proc.wait(timeout=2)
+            self.proc.wait(timeout=grace)
         except subprocess.TimeoutExpired:
             pass
         if hasattr(os, "killpg"):
@@ -358,7 +366,7 @@ def bisect(engine, ref, fen, depth, expected, first_total, out):
                     out("     Likely causes: make/unmake does not restore some state (castling "
                         "rights, en passant, hash, counters), a perft cache returns stale values, "
                         "or the last-ply bulk count uses a different path than the move list%s."
-                        % (" (most likely here, since the fresh depth is 1)" if depth == 1 else ""))
+                        % (" (a candidate here, since the fresh depth is 1)" if depth == 1 else ""))
                     culprit["problem"] = "parent-vs-fresh"
                 else:
                     out("  >> inconsistent engine: below the parent it counts %s %s nodes, set up "
@@ -419,7 +427,7 @@ def pick_moves_to_recheck(fen, counts):
     try:
         legal = ref_position(fen, []).legal_moves()
     except (ValueError, KeyError, IndexError):
-        legal = []
+        return []  # cannot classify the moves, and a broken FEN would mislead the re-check
     for kind in ("castle", "ep", "promo", "double"):
         for m in legal:
             u = Position.uci(m)
@@ -480,33 +488,50 @@ def run(args, out=print):
     state = {"passed": 0, "failed": 0, "errors": 0, "skipped": 0, "results": [], "aborted": None}
     handles = {"engine": None, "ref": None, "log": None}
     totals = {"nodes": 0, "time": 0.0}
+    interrupted = False
     try:
         return _run(args, out, state, handles, totals)
     except BaseException as e:
+        interrupted = isinstance(e, (KeyboardInterrupt, SystemExit))
         if state["aborted"] is None:
-            state["aborted"] = ("interrupted" if isinstance(e, (KeyboardInterrupt, SystemExit))
-                                else "harness error: %r" % e)
+            state["aborted"] = "interrupted" if interrupted else "harness error: %r" % e
         raise
     finally:
-        for key in ("engine", "ref"):
-            if handles[key] is not None:
-                handles[key].close()
-        for rec in state["results"]:
-            rec.setdefault("status", "aborted")
-        out("")
-        out("%d passed, %d failed, %d errors, %d skipped (--max-nodes %s, --max-depth %s)"
-            % (state["passed"], state["failed"], state["errors"], state["skipped"],
-               fmt(args.max_nodes) if args.max_nodes else "-", args.max_depth or "-"))
-        if totals["time"] > 0:
-            out("total %s nodes in %.2fs (%s nps wall clock, includes UCI overhead)"
-                % (fmt(totals["nodes"]), totals["time"], fmt(int(totals["nodes"] / totals["time"]))))
-        if state["aborted"]:
-            out("RUN ABORTED: %s" % state["aborted"])
-        if args.json:
-            with open(args.json, "w") as f:
-                json.dump(state, f, indent=2)
-        if handles["log"]:
-            handles["log"].close()
+        # Cleanup must finish even if more signals arrive (a second Ctrl-C, SIGTERM).
+        old = {}
+        for name in ("SIGINT", "SIGTERM", "SIGHUP"):
+            if hasattr(signal, name):
+                try:
+                    old[name] = signal.signal(getattr(signal, name), signal.SIG_IGN)
+                except (ValueError, OSError):  # not the main thread
+                    pass
+        try:
+            for key in ("engine", "ref"):
+                if handles[key] is not None:
+                    handles[key].kill(grace=0 if interrupted else 2)
+            for rec in state["results"]:
+                rec.setdefault("status", "aborted")
+            if args.json:  # before printing: a dead terminal must not cost the JSON
+                with open(args.json, "w") as f:
+                    json.dump(state, f, indent=2)
+            if handles["log"]:
+                handles["log"].close()
+            try:
+                out("")
+                out("%d passed, %d failed, %d errors, %d skipped (--max-nodes %s, --max-depth %s)"
+                    % (state["passed"], state["failed"], state["errors"], state["skipped"],
+                       fmt(args.max_nodes) if args.max_nodes else "-", args.max_depth or "-"))
+                if totals["time"] > 0:
+                    out("total %s nodes in %.2fs (%s nps wall clock, includes UCI overhead)"
+                        % (fmt(totals["nodes"]), totals["time"],
+                           fmt(int(totals["nodes"] / totals["time"]))))
+                if state["aborted"]:
+                    out("RUN ABORTED: %s" % state["aborted"])
+            except OSError:
+                pass
+        finally:
+            for name, handler in old.items():
+                signal.signal(getattr(signal, name), handler)
 
 
 def _run(args, out, state, handles, totals):
@@ -655,8 +680,13 @@ def _run(args, out, state, handles, totals):
                 else:
                     try:
                         rec["culprit"] = bisect(engine, ref, e["fen"], depth, expected, d.total, out)
+                    except EngineError as err:  # the engine or a UCI reference crashed/hung
+                        out("    bisection aborted: %s" % err)
+                        rec["bisect_error"] = str(err)
+                        state["errors"] += 1
                     except Exception as err:  # noqa: BLE001 - report, never crash the run
                         out("    bisection aborted: %s" % err)
+                        rec["bisect_error"] = str(err)
             break  # deeper depths of this position would fail too
 
     if state["errors"]:
@@ -734,6 +764,8 @@ def self_test(args, out=print):
          "panicked at src/movegen/mod.rs"),
         ("crash-then-dead --state " + state_file, "cpw-pos3,cpw-pos4,cpw-pos5,cpw-pos6", 60000,
          "builtin", 2, "3 engine errors in a row"),
+        ("hang-pos3", "cpw-pos3,cpw-pos4", 60000, "builtin", 2, "engine timed out"),
+        ("trailing-space", "startpos,kiwipete", 60000, "builtin", 0, "0 failed, 0 errors"),
     )
     ok = True
     try:
@@ -743,7 +775,7 @@ def self_test(args, out=print):
             sub = make_parser().parse_args([])
             sub.engine = py + (" --bug " + bug if bug else "")
             sub.only, sub.max_nodes, sub.reference = only, max_nodes, reference
-            sub.timeout, sub.probe_timeout, sub.startup_timeout = 20, 3, 10
+            sub.timeout, sub.probe_timeout, sub.startup_timeout = (3 if "hang" in bug else 20), 3, 10
             lines = []
             rc = run(sub, out=lambda s: (lines.append(s), out("  " + s)))
             text = "\n".join(lines)
@@ -786,27 +818,43 @@ def make_parser():
 def main():
     ap = make_parser()
     args = ap.parse_args()
+
+    def usage_error(msg):
+        if args.json:  # do not leave a stale result file behind
+            try:
+                with open(args.json, "w") as f:
+                    json.dump({"passed": 0, "failed": 0, "errors": 0, "skipped": 0,
+                               "results": [], "aborted": "usage error: " + msg}, f, indent=2)
+            except OSError:
+                pass
+        ap.error(msg)
+
     for name in ("max_nodes", "bisect_budget"):
         v = getattr(args, name)
         if v != v or v in (float("inf"), float("-inf")) or v < 0:
-            ap.error("--%s must be a finite number >= 0" % name.replace("_", "-"))
+            usage_error("--%s must be a finite number >= 0" % name.replace("_", "-"))
         setattr(args, name, int(v))
     for sig in ("SIGTERM", "SIGHUP"):  # run finally blocks so engines are killed
-        if hasattr(signal, sig):
-            signal.signal(getattr(signal, sig), lambda *_: sys.exit(2))
+        if hasattr(signal, sig) and signal.getsignal(getattr(signal, sig)) is not signal.SIG_IGN:
+            signal.signal(getattr(signal, sig), lambda *_: sys.exit(2))  # (keeps nohup working)
     try:
         if args.verify_suite:
             return verify_suite(args)
         if args.self_test:
             return self_test(args)
-        if not args.engine:
-            ap.error("--engine is required")
+        if not args.engine or not args.engine.strip():
+            usage_error("--engine is required")
         return run(args)
     except KeyboardInterrupt:
         print("interrupted")
         return 2
     except (OSError, ValueError, EngineError) as e:
         print("ERROR: %s" % e)
+        return 2
+    except Exception:  # a harness bug must never look like a perft mismatch (exit 1)
+        import traceback
+        traceback.print_exc()
+        print("INTERNAL ERROR in the harness (exit 2); please report the traceback above")
         return 2
 
 

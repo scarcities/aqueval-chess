@@ -12,6 +12,8 @@ detects it and reports the right cause:
     castle-notation prints castling as king-takes-rook (e1h1)
     bad-total      prints the total as `Perft = N` (a format the harness does not know)
     crash-pos3     panics (exit 101) on `go perft` >= 2 in CPW position 3
+    hang-pos3      never answers `go perft` >= 2 in CPW position 3 (busy loop)
+    trailing-space not a bug: correct output with a trailing space on every line
     crash-then-dead  like crash-pos3, and every later start (marker file given by
                    `--state PATH`) prints a banner and exits without speaking UCI
 """
@@ -121,13 +123,19 @@ def main():
                 print("thread 'main' panicked at src/movegen/mod.rs:311:17:\n"
                       "index out of bounds: the len is 64 but the index is 64", flush=True)
                 sys.exit(101)
+            if BuggyPosition.bug == "hang-pos3" and depth >= 2 and pos.fen() == POS3:
+                while True:
+                    pass
             t = time.monotonic()
             d = pos.divide_list(depth)
             ms = int((time.monotonic() - t) * 1000)
             total = sum(n for _, n in d)
+            sp = " " if BuggyPosition.bug == "trailing-space" else ""
             for mv, n in d:
-                print("%s: %d" % (mv, n))
-            if BuggyPosition.bug == "bad-total":
+                print("%s: %d%s" % (mv, n, sp))
+            if BuggyPosition.bug == "trailing-space":
+                print("\nNodes searched: %d \nTime: %d ms " % (total, ms), flush=True)
+            elif BuggyPosition.bug == "bad-total":
                 print("\nPerft = %d" % total, flush=True)
             else:
                 print("\nNodes searched: %d\nTime: %d ms\nNPS: %d"

@@ -21,7 +21,14 @@ Invariants: no heap allocation in movegen, make/unmake or search recursion; `sha
 
 ## Current status
 
-- **Elo estimate:** N/A (Phase 1 has no real search).
+- **Elo estimate (vs limited Stockfish):** ~2150 (2026-10-17, after Phase 2 steps 1–4: PST eval, PVS, TT, TT/MVV-LVA ordering). Approximation against Stockfish 17 with `UCI_LimitStrength`, not a CCRL rating; SF's Elo scale is calibrated at longer time controls, so the two levels disagree.
+
+  | Opponent | TC | Games | Score | Elo diff | Implied Quant Elo |
+  |---|---|---|---|---|---|
+  | SF 17, UCI_Elo 2000 | 10+0.1 | 200 | 110.5 (55.3 %) | +37 ± 46 | ~2036 |
+  | SF 17, UCI_Elo 2300 | 10+0.1 | 200 | 86.5 (43.3 %) | −47 ± 44 | ~2252 |
+
+  Levels picked from a 20-game probe at 1400/1700/2000/2300. Rerun: `scripts/elo_gauntlet.sh` with `LEVELS="2000 2300"`.
 - **Bench signature:** 602730
 - **Perft 6 startpos:** see CHANGELOG.md for nps (bulk and non-bulk).
 - **Roadmap:** Phase 1 (Foundation) complete. Next: Phase 2 (Search).

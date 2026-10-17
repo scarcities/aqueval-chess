@@ -44,6 +44,7 @@ Run with `scripts/run_sprt.sh`, one test at a time, fastchess concurrency 10 (2 
 |---|---|---|---|---|
 | Tapered eval + PST (vs Phase 1 search with quiescence) | [0, 5] | H1 accepted | +501 ± 89 | 312 |
 | PVS (vs tapered eval) | [0, 5] | H1 accepted | +80 ± 20 | 780 |
+| Transposition table (vs PVS) | [0, 10] | H1 accepted | +73 ± 27 | 452 |
 
 ## Future roadmap
 

@@ -123,7 +123,7 @@ impl Heuristics {
 /// Zero heap allocations in recursion.
 fn alpha_beta(
     board: &mut Board,
-    depth: usize,
+    mut depth: usize,
     ply: usize,
     mut alpha: i32,
     beta: i32,
@@ -136,8 +136,19 @@ fn alpha_beta(
         return 0;
     }
 
+    // Check extension: search one ply deeper when in check (also stops qsearch at depth 0
+    // from standing pat in check).
+    let in_check = board.is_in_check();
+    if in_check {
+        depth += 1;
+    }
+
     if depth == 0 {
         return quiescence(board, alpha, beta, ctx);
+    }
+    // Extensions can lengthen lines; the ply tables end at MAX_PLY.
+    if ply >= MAX_PLY - 1 {
+        return evaluate(board);
     }
 
     // Threefold repetition or 50-move rule
@@ -145,7 +156,6 @@ fn alpha_beta(
         return 0;
     }
 
-    let in_check = board.is_in_check();
     let key = board.zobrist_hash();
     let mut tt_move = Move::NULL;
     if let Some(e) = ctx.tt.probe(key, ply) {

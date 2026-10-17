@@ -29,7 +29,7 @@ Invariants: no heap allocation in movegen, make/unmake or search recursion; `sha
   | SF 17, UCI_Elo 2300 | 10+0.1 | 200 | 86.5 (43.3 %) | −47 ± 44 | ~2252 |
 
   Levels picked from a 20-game probe at 1400/1700/2000/2300. Rerun: `scripts/elo_gauntlet.sh` with `LEVELS="2000 2300"`.
-- **Bench signature:** 116403
+- **Bench signature:** 125351
 - **Perft 6 startpos:** see CHANGELOG.md for nps (bulk and non-bulk).
 - **Roadmap:** Phase 1 (Foundation) complete. Next: Phase 2 (Search).
 

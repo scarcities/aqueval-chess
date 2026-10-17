@@ -4,6 +4,9 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### Check extensions (bench 116403 → 125351)
+- A node in check searches one ply deeper (so quiescence is never entered in check). Ply is capped at 127 because extensions can lengthen lines.
+
 ### Reverse futility pruning (bench 216428 → 116403)
 - At null-window nodes not in check with depth ≤ 6: return the static eval if it beats beta by 80·depth (not near mate scores). Static eval is now computed once per such node and shared with null move pruning.
 

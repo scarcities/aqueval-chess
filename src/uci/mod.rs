@@ -77,7 +77,7 @@ struct ParsedGo {
     perft_depth: Option<usize>,
 }
 
-fn parse_go(board: &Board, tokens: &[&str]) -> ParsedGo {
+fn parse_go(board: &Board, tokens: &[&str], move_overhead_ms: u64) -> ParsedGo {
     let mut depth = None;
     let mut nodes = None;
     let mut wtime = None;
@@ -179,14 +179,16 @@ fn parse_go(board: &Board, tokens: &[&str]) -> ParsedGo {
         i += 1;
     }
 
+    // Reserve the GUI/OS latency up front so the limits only cover time we can really spend.
+    let minus_overhead = |t: Option<u64>| t.map(|t: u64| t.saturating_sub(move_overhead_ms));
     let time_limits = TimeManager::calculate_limits(
         board.side_to_move,
-        wtime,
-        btime,
+        minus_overhead(wtime),
+        minus_overhead(btime),
         winc,
         binc,
         movestogo,
-        movetime,
+        minus_overhead(movetime),
     );
 
     ParsedGo {
@@ -350,7 +352,7 @@ pub fn run_uci<R: BufRead, W: Write + Send + 'static>(mut reader: R, writer: Arc
                     }
                 }
 
-                let parsed_go = parse_go(&board, args);
+                let parsed_go = parse_go(&board, args, options.move_overhead_ms);
 
                 if let Some(perft_d) = parsed_go.perft_depth {
                     let mut b_clone = board.clone();

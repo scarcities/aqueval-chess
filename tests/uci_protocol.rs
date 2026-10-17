@@ -247,3 +247,30 @@ fn test_subprocess_ponderhit_emits_bestmove() {
     session.quit();
     assert!(saw_bestmove, "ponderhit must produce bestmove before readyok");
 }
+
+#[test]
+fn test_subprocess_low_time_bestmove_in_time() {
+    let mut session = UciSession::start();
+    session.send("isready");
+    session.read_until_match(|l| l == "readyok");
+
+    // Kiwipete: wide tree, so the search would overrun any limit it does not enforce.
+    let kiwipete = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R";
+    for (side, time) in [("w", 500u64), ("w", 100), ("w", 20), ("b", 20)] {
+        session.send(&format!("position fen {kiwipete} {side} KQkq - 0 1"));
+        let start = std::time::Instant::now();
+        session.send(&format!("go wtime {time} btime {time}"));
+        let (_, bestmove) = session.read_until_bestmove();
+        let elapsed = start.elapsed().as_millis() as u64;
+        assert!(elapsed < time, "{side} wtime/btime {time}: bestmove after {elapsed} ms");
+        assert_ne!(bestmove, "0000");
+    }
+
+    // Large increment and movestogo 1 must not push the search past the clock either.
+    session.send(&format!("position fen {kiwipete} w KQkq - 0 1"));
+    let start = std::time::Instant::now();
+    session.send("go wtime 300 btime 300 winc 5000 binc 5000 movestogo 1");
+    session.read_until_bestmove();
+    assert!(start.elapsed().as_millis() < 300);
+    session.quit();
+}

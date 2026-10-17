@@ -5,6 +5,7 @@ use std::io::Write;
 pub struct UciOptions {
     pub hash_mb: usize,
     pub threads: usize,
+    pub move_overhead_ms: u64,
 }
 
 impl Default for UciOptions {
@@ -12,6 +13,7 @@ impl Default for UciOptions {
         Self {
             hash_mb: 16,
             threads: 1,
+            move_overhead_ms: 30,
         }
     }
 }
@@ -40,6 +42,11 @@ impl UciOptions {
                     }
                 }
             }
+            "move overhead" => {
+                if let Some(val) = value.and_then(|v| v.trim().parse::<u64>().ok()) {
+                    self.move_overhead_ms = val.min(5000);
+                }
+            }
             _ => {
                 // Ignore unknown options gracefully per UCI specification
             }
@@ -50,6 +57,7 @@ impl UciOptions {
     pub fn print_options<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
         writeln!(writer, "option name Hash type spin default 16 min 1 max 1024")?;
         writeln!(writer, "option name Threads type spin default 1 min 1 max 1")?;
+        writeln!(writer, "option name Move Overhead type spin default 30 min 0 max 5000")?;
         Ok(())
     }
 }
@@ -80,5 +88,8 @@ mod tests {
         // Unknown option should not change anything or panic
         opts.set_option("UnknownOption", Some("foo"));
         assert_eq!(opts.hash_mb, 128);
+
+        opts.set_option("move overhead", Some("100"));
+        assert_eq!(opts.move_overhead_ms, 100);
     }
 }

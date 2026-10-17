@@ -291,9 +291,10 @@ pub fn search_sync(
             }
         }
 
-        // Check soft time limit
+        // Check soft time limit: the next iteration costs several times the last one,
+        // so do not start it once half the soft budget is gone.
         if let Some(soft) = limits.time_limits.soft_limit {
-            if elapsed >= soft {
+            if elapsed >= soft / 2 {
                 break;
             }
         }

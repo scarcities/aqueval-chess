@@ -2,6 +2,14 @@
 
 Every merged change, with bench signature and nps where relevant. Measured on the reference machine, release build.
 
+## Unreleased
+
+### Time management fix (bench unchanged: 782700)
+- New UCI option `Move Overhead` (default 30 ms, 0–5000), subtracted from wtime/btime/movetime before allocating.
+- Hard limit is capped at 80% of the remaining time (after overhead) whatever increment or movestogo say.
+- No new iteration once half the soft limit is used, so moves no longer overrun their budget by a whole iteration.
+- Tests: hard limit vs remaining time; UCI subprocess sends bestmove in time with wtime 500/100/20.
+
 ## 0.1.0 — Phase 1: Foundation (2026-10-17)
 
 **Bench signature: 782700** (six standard positions, depth 5; first signature)

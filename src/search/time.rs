@@ -13,6 +13,7 @@ pub struct TimeManager;
 impl TimeManager {
     /// Computes soft and hard search time limits given the clock state and parameters.
     ///
+    /// Callers pass clock and movetime values with the UCI "Move Overhead" already subtracted.
     /// - `movetime`: Exact time dedicated to this move (soft and hard limits equal `movetime`).
     /// - `wtime` / `btime`: Remaining clock time in milliseconds.
     /// - `winc` / `binc`: Clock increment in milliseconds.
@@ -27,7 +28,7 @@ impl TimeManager {
         movetime: Option<u64>,
     ) -> TimeLimits {
         if let Some(mt) = movetime {
-            let dur = Duration::from_millis(mt);
+            let dur = Duration::from_millis(mt.max(1));
             return TimeLimits {
                 soft_limit: Some(dur),
                 hard_limit: Some(dur),
@@ -45,16 +46,18 @@ impl TimeManager {
                 Color::Black => binc.unwrap_or(0),
             };
 
+            let remaining = remaining.max(1);
             let moves = movestogo.unwrap_or(25).clamp(1, 50);
 
             // Base allocation per move
             let base = (remaining / moves) + (inc * 3 / 4);
 
-            // Safety cap: never allocate more than 80% of remaining time
-            let max_alloc = (remaining * 8) / 10;
+            // Safety cap: the hard limit never exceeds 80% of the remaining time,
+            // whatever the increment or movestogo say.
+            let max_alloc = (remaining * 8 / 10).max(1);
 
             let soft_ms = (base * 8 / 10).min(max_alloc).max(1);
-            let hard_ms = (base * 5 / 2).min(max_alloc).max(soft_ms);
+            let hard_ms = (base * 3).min(max_alloc).max(soft_ms);
 
             TimeLimits {
                 soft_limit: Some(Duration::from_millis(soft_ms)),
@@ -117,5 +120,25 @@ mod tests {
         );
         assert_eq!(limits.soft_limit, None);
         assert_eq!(limits.hard_limit, None);
+    }
+
+    #[test]
+    fn test_hard_limit_never_exceeds_remaining() {
+        for remaining in [1u64, 20, 100, 500, 1600, 60000] {
+            for (inc, mtg) in [(0, None), (5000, None), (0, Some(1)), (10_000, Some(1))] {
+                let l = TimeManager::calculate_limits(
+                    Color::Black,
+                    None,
+                    Some(remaining),
+                    None,
+                    Some(inc),
+                    mtg,
+                    None,
+                );
+                let hard = l.hard_limit.unwrap().as_millis() as u64;
+                assert!(hard <= (remaining * 8 / 10).max(1), "remaining {remaining} inc {inc}: hard {hard}");
+                assert!(l.soft_limit.unwrap() <= l.hard_limit.unwrap());
+            }
+        }
     }
 }

@@ -224,6 +224,19 @@ fn alpha_beta(
     for (i, &m) in moves.as_slice().iter().enumerate() {
         let quiet = !m.is_capture() && m.promotion_piece().is_none() && !ctx.heur.killers[ply].contains(&m);
         let undo = board.make_move(m);
+        // Futility pruning: at frontier null-window nodes whose static eval is far below
+        // alpha, quiet moves that do not give check cannot catch up.
+        if prunable
+            && depth <= 3
+            && i > 0
+            && quiet
+            && alpha > -MATE_THRESHOLD
+            && static_eval + 150 * depth as i32 <= alpha
+            && !board.is_in_check()
+        {
+            board.unmake_move(m, &undo);
+            continue;
+        }
         // Late move reductions: quiet, non-checking moves late in the list get a shallower
         // null-window search (log formula, one ply less at PV nodes).
         let mut reduction = 0;

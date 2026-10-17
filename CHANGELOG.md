@@ -4,6 +4,10 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### Killer moves and history heuristic (bench 602730 → 481473)
+- Quiet moves that cause a beta cutoff become killers for their ply (two slots) and get depth² butterfly history ([side][from][to], capped below killer scores). Order: TT move, captures (MVV-LVA), killer 1, killer 2, quiets by history.
+- Startpos depth 8: 16.7M → 2.0M nodes.
+
 ### Phase 2 step 4: move ordering with TT move and MVV-LVA (bench 1400124 → 602730)
 - In the tree: TT move first, then captures by MVV-LVA, then quiet moves; at the root the previous best move first, then MVV-LVA.
 - Uses `sort_unstable_by_key` in the tree, which does not allocate (the stable sort used before could).

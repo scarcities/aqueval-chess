@@ -25,7 +25,7 @@ fn test_bench_default_depth_deterministic() {
     let sig2 = run_bench_with_writer(None, &mut sink);
 
     assert_eq!(sig1, sig2, "Default bench signature must be deterministic");
-    assert_eq!(sig1, 116_403, "Phase 1 default bench signature expectation");
+    assert_eq!(sig1, 117_727, "Phase 1 default bench signature expectation");
 }
 
 #[test]
@@ -40,7 +40,7 @@ fn test_bench_cli_binary_execution() {
 
     assert!(output1.status.success());
     let stdout1 = String::from_utf8(output1.stdout).expect("Valid UTF-8");
-    assert!(stdout1.contains("Nodes searched  : 116403"));
+    assert!(stdout1.contains("Nodes searched  : 117727"));
     assert!(stdout1.contains("Total time (ms) :"));
     assert!(stdout1.contains("Nodes/second    :"));
 
@@ -52,5 +52,5 @@ fn test_bench_cli_binary_execution() {
 
     assert!(output2.status.success());
     let stdout2 = String::from_utf8(output2.stdout).expect("Valid UTF-8");
-    assert!(stdout2.contains("Nodes searched  : 116403"));
+    assert!(stdout2.contains("Nodes searched  : 117727"));
 }

@@ -246,6 +246,37 @@ fn alpha_beta(
     alpha
 }
 
+/// Searches all root moves in the window [alpha, beta]; returns the best move and score
+/// (fail-hard: `alpha` on fail-low, `>= beta` on fail-high).
+fn search_root(
+    board: &mut Board,
+    moves: &[Move],
+    depth: usize,
+    mut alpha: i32,
+    beta: i32,
+    ctx: &mut SearchContext,
+) -> (Move, i32) {
+    let mut best = (moves[0], -32000);
+    for (i, &m) in moves.iter().enumerate() {
+        let undo = board.make_move(m);
+        let score = pvs_child(board, depth - 1, 1, alpha, beta, (i > 0).then_some(0), ctx);
+        board.unmake_move(m, &undo);
+        if ctx.stop_flag.load(Ordering::Relaxed) {
+            break;
+        }
+        if score > best.1 {
+            best = (m, score);
+        }
+        if score > alpha {
+            alpha = score;
+            if score >= beta {
+                break;
+            }
+        }
+    }
+    best
+}
+
 /// Principal variation search for one child (already made on `board`), from the parent's view:
 /// the first move gets the full window, later moves a null window that is re-searched
 /// only if it beats alpha.
@@ -417,11 +448,6 @@ pub fn search(
     let max_depth = limits.depth.unwrap_or(64);
 
     for current_depth in 1..=max_depth {
-        let mut alpha = -32000;
-        let beta = 32000;
-        let mut depth_best_move = candidate_moves[0];
-        let mut depth_best_score = -32000;
-
         // Order root moves: place current best_move first, then captures
         candidate_moves.sort_by_key(|&m| std::cmp::Reverse(heur.order_key(board, m, best_move, 0)));
 
@@ -433,24 +459,27 @@ pub fn search(
             heur: &mut heur,
         };
 
-        for (i, &m) in candidate_moves.iter().enumerate() {
-            let undo = board.make_move(m);
-            let score = pvs_child(board, current_depth - 1, 1, alpha, beta, (i > 0).then_some(0), &mut ctx);
-            board.unmake_move(m, &undo);
-
+        // Aspiration window around the last score from depth 4 on; widen the failing side
+        // (doubling the margin) until the score lands inside.
+        let (mut lo, mut hi, mut delta) = if current_depth >= 4 {
+            ((best_score - 25).max(-32000), (best_score + 25).min(32000), 25)
+        } else {
+            (-32000, 32000, 25)
+        };
+        let (depth_best_move, depth_best_score) = loop {
+            let (m, score) = search_root(board, &candidate_moves, current_depth, lo, hi, &mut ctx);
             if stop_flag.load(Ordering::Relaxed) {
-                break;
+                break (m, score);
             }
-
-            if score > depth_best_score {
-                depth_best_score = score;
-                depth_best_move = m;
+            if score <= lo && lo > -32000 {
+                lo = (score - delta).max(-32000);
+            } else if score >= hi && hi < 32000 {
+                hi = (score + delta).min(32000);
+            } else {
+                break (m, score);
             }
-
-            if score > alpha {
-                alpha = score;
-            }
-        }
+            delta *= 2;
+        };
 
         if stop_flag.load(Ordering::Relaxed) {
             break;

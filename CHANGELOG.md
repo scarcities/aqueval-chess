@@ -4,6 +4,10 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### Phase 2 step 1: tapered evaluation with piece-square tables (bench 3251662 → 3701041)
+- Middlegame/endgame material and piece-square values blended by game phase (N=B=1, R=2, Q=4, max 24). Tables are built from simple shapes: centrality for minor pieces/queen/endgame king, pawn advancement, rook on 7th, castled king shelter.
+- Tests: colour-flip symmetry, central knight > rim knight, advanced pawn bonus.
+
 ### Quiescence search: score no longer flips with depth (bench 782700 → 3251662)
 - Cause: not a negamax sign error (eval is already side-to-move relative), but the horizon effect of a material-only search without quiescence: at odd depths the side to move made the last capture (+1.00), at even depths the opponent did (−1.00).
 - Fix: captures-only quiescence search with stand-pat and MVV-LVA ordering at depth 0.

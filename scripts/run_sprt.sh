@@ -7,14 +7,15 @@
 # You also need an opening book (EPD or PGN), e.g. UHO_Lichess_4852_v1.epd.
 #
 # Usage: scripts/run_sprt.sh gainer|simplification <new-engine> <base-engine> <book.epd>
-# Env:   TC (default 8+0.08), CONCURRENCY (default 10), HASH (default 16), FASTCHESS
+# Env:   TC (default 8+0.08), CONCURRENCY (default 10), HASH (default 16), ROUNDS (default 50000;
+#        2 games per round), PGN (default sprt.pgn), FASTCHESS
 #
 # Bounds (process rule 5): gainers [0, 5], simplifications [-5, 0], normalized Elo.
 # Log every result, including failures, in AGENTS.md.
 set -euo pipefail
 
 if [ $# -ne 4 ]; then
-    sed -n '2,13p' "$0"
+    sed -n '2,14p' "$0"
     exit 1
 fi
 
@@ -35,6 +36,6 @@ exec "${FASTCHESS:-fastchess}" \
     -engine cmd="$base" name=base \
     -each tc="${TC:-8+0.08}" option.Hash="${HASH:-16}" option.Threads=1 \
     -openings file="$book" format="${book##*.}" order=random \
-    -repeat -recover -rounds 50000 -concurrency "${CONCURRENCY:-10}" \
+    -repeat -recover -rounds "${ROUNDS:-50000}" -concurrency "${CONCURRENCY:-10}" \
     -sprt $bounds alpha=0.05 beta=0.05 model=normalized \
-    -pgnout file=sprt.pgn
+    -pgnout file="${PGN:-sprt.pgn}"

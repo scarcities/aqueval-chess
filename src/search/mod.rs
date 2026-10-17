@@ -423,9 +423,13 @@ mod tests {
 
     #[test]
     fn test_score_does_not_flip_with_depth() {
-        // Material-only eval + quiescence: startpos is level at every depth.
+        // With quiescence, startpos stays near level at every depth (only small tempo swings,
+        // never a pawn up/down alternation).
         let start = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-        assert_eq!(scores_by_depth(start, 5), vec!["cp 0"; 5]);
+        for score in scores_by_depth(start, 5) {
+            let cp: i32 = score.strip_prefix("cp ").unwrap().parse().unwrap();
+            assert!(cp.abs() < 50, "startpos {score}");
+        }
     }
 
     #[test]

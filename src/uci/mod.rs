@@ -423,8 +423,11 @@ pub fn run_uci<R: BufRead, W: Write + Send + 'static>(mut reader: R, writer: Arc
                     });
                 }
             }
-            "stop" => {
+            // shortcut: ponderhit ends the search and moves at once instead of switching to
+            // normal time control; upgrade when the Phase 2 search gets real ponder handling.
+            "stop" | "ponderhit" => {
                 if let Some(mut active) = active_search.take() {
+                    active.is_pondering.store(false, Ordering::SeqCst);
                     active.stop_flag.store(true, Ordering::SeqCst);
                     if let Some(h) = active.thread_handle.take() {
                         let _ = h.join();
@@ -439,11 +442,6 @@ pub fn run_uci<R: BufRead, W: Write + Send + 'static>(mut reader: R, writer: Arc
                         let _ = writeln!(w, "bestmove {}", m.to_uci());
                         let _ = w.flush();
                     }
-                }
-            }
-            "ponderhit" => {
-                if let Some(ref active) = active_search {
-                    active.is_pondering.store(false, Ordering::SeqCst);
                 }
             }
             "quit" => {

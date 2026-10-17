@@ -225,3 +225,25 @@ fn test_subprocess_go_ponder_and_stop() {
 
     assert!(!bestmove.is_empty(), "Must emit bestmove after stop on ponder");
 }
+
+#[test]
+fn test_subprocess_ponderhit_emits_bestmove() {
+    let mut session = UciSession::start();
+    session.send("position startpos");
+    // Time limits make the search finish early and then wait; ponderhit must still move.
+    session.send("go ponder wtime 2000 btime 2000");
+    thread::sleep(Duration::from_millis(300));
+    session.send("ponderhit");
+    session.send("isready");
+
+    let mut saw_bestmove = false;
+    loop {
+        let line = session.read_line();
+        saw_bestmove |= line.starts_with("bestmove ");
+        if line == "readyok" {
+            break;
+        }
+    }
+    session.quit();
+    assert!(saw_bestmove, "ponderhit must produce bestmove before readyok");
+}

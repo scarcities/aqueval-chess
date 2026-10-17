@@ -267,9 +267,9 @@ fn test_perft_divide_rigorous_oracle_invariants() {
 fn test_adversarial_tactical_positions_bulk_vs_non_bulk_and_divide() {
     let tactical_positions = [
         // EP horizontal pin: White King e5, White Pawn d5, Black Pawn c5, Black Rook a5, Black King h8
-        ("EP Horizontal Pin (White)", "7k/8/8/r1PpK3/8/8/8/8 w - c6 0 1", 3),
+        ("EP Horizontal Pin (White)", "7k/8/8/r1pPK3/8/8/8/8 w - c6 0 1", 3),
         // EP horizontal pin: Black King e4, Black Pawn d4, White Pawn c4, White Rook a4, White King h1
-        ("EP Horizontal Pin (Black)", "8/8/8/8/R1pPk3/8/8/7K b - c3 0 1", 3),
+        ("EP Horizontal Pin (Black)", "8/8/8/8/R1Ppk3/8/8/7K b - c3 0 1", 3),
         // EP diagonal pin: moving pawn pinned, Black King a8
         ("EP Diagonal Pin (Moving Pawn)", "k6b/8/8/3pP3/8/8/8/K7 w - d6 0 1", 3),
         // EP diagonal pin: captured pawn was shielding King, Black King a8

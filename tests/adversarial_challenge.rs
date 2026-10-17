@@ -17,7 +17,7 @@ fn test_ep_horizontal_pin_white_king_rook() {
     // White King on e5, White Pawn on d5, Black Pawn on c5, Black Rook on a5.
     // Black just played c7-c5 (EP square is c6).
     // If White plays d5xc6 e.p., both pawns vacate rank 5 and Black Rook on a5 gives check!
-    let fen = "8/8/8/r1PpK3/8/8/8/8 w - c6 0 1";
+    let fen = "7k/8/8/r1pPK3/8/8/8/8 w - c6 0 1";
     let board = Board::from_fen(fen).unwrap();
     let mut moves = MoveList::new();
     board.generate_legal_moves(&mut moves);
@@ -31,7 +31,7 @@ fn test_ep_horizontal_pin_white_king_rook() {
 #[test]
 fn test_ep_horizontal_pin_white_king_queen() {
     // White King on e5, White Pawn on d5, Black Pawn on c5, Black Queen on a5.
-    let fen = "8/8/8/q1PpK3/8/8/8/8 w - c6 0 1";
+    let fen = "7k/8/8/q1pPK3/8/8/8/8 w - c6 0 1";
     let board = Board::from_fen(fen).unwrap();
     let mut moves = MoveList::new();
     board.generate_legal_moves(&mut moves);
@@ -47,7 +47,7 @@ fn test_ep_horizontal_pin_black_king_rook() {
     // Black King on e4, Black Pawn on d4, White Pawn on c4, White Rook on a4.
     // White just played c2-c4 (EP square is c3).
     // If Black plays d4xc3 e.p., both pawns vacate rank 4 and White Rook on a4 checks Black King!
-    let fen = "8/8/8/8/R1pPk3/8/8/8 b - c3 0 1";
+    let fen = "8/8/8/8/R1Ppk3/8/8/7K b - c3 0 1";
     let board = Board::from_fen(fen).unwrap();
     let mut moves = MoveList::new();
     board.generate_legal_moves(&mut moves);
@@ -63,7 +63,7 @@ fn test_ep_horizontal_pin_king_on_opposite_side() {
     // White King on h5, White Pawn on f5, Black Pawn on e5, Black Rook on a5.
     // All on rank 5. Black just played e7-e5.
     // If f5xe6, both pawns vacate rank 5, Ra5 checks Kh5!
-    let fen = "8/8/8/r3Pp1K/8/8/8/8 w - e6 0 1";
+    let fen = "k7/8/8/r3pP1K/8/8/8/8 w - e6 0 1";
     let board = Board::from_fen(fen).unwrap();
     let mut moves = MoveList::new();
     board.generate_legal_moves(&mut moves);
@@ -79,7 +79,7 @@ fn test_ep_horizontal_safe_when_king_not_on_rank() {
     // White King on h8 (not on rank 5!).
     // White pawn on e5, Black pawn on f5 (just played f7-f5, EP square f6). Black Rook on a5.
     // e5xf6 e.p. leaves rank 5, but White King is safe on h8.
-    let fen = "7K/8/8/r3Pp2/8/8/8/8 w - f6 0 1";
+    let fen = "7K/8/8/r3Pp2/8/8/8/k7 w - f6 0 1";
     let board = Board::from_fen(fen).unwrap();
     let mut moves = MoveList::new();
     board.generate_legal_moves(&mut moves);
@@ -101,7 +101,7 @@ fn test_ep_diagonal_pin_moving_pawn() {
     // Black plays d7-d5 (EP square d6).
     // White pawn on e5 is pinned diagonally to King on a1 by Bh8.
     // If White plays e5xd6 e.p., pawn leaves diagonal, Bh8 checks Ka1!
-    let fen = "7b/8/8/3pP3/8/8/8/K7 w - d6 0 1";
+    let fen = "7b/8/8/3pP3/8/8/8/K6k w - d6 0 1";
     let board = Board::from_fen(fen).unwrap();
     let mut moves = MoveList::new();
     board.generate_legal_moves(&mut moves);
@@ -124,7 +124,7 @@ fn test_ep_diagonal_pin_captured_pawn_shielding_king() {
     // White pawn moves d5 -> e6 (not on diagonal a1-h8).
     // Black pawn on e5 is removed.
     // Square e5 is now empty -> Bh8 checks Ka1!
-    let fen = "7b/8/8/3Pp3/8/8/8/K7 w - e6 0 1";
+    let fen = "7b/8/8/3Pp3/8/8/8/K6k w - e6 0 1";
     let board = Board::from_fen(fen).unwrap();
     let mut moves = MoveList::new();
     board.generate_legal_moves(&mut moves);
@@ -144,7 +144,7 @@ fn test_ep_diagonal_pin_black_captured_pawn_shielding_king() {
     // Black pawn on d4.
     // White pawn on e4 was shielding Black King on a8 from White Bishop on h1.
     // If Black plays d4xe3 e.p., e4 is removed and Bh1 checks Ka8!
-    let fen = "k7/8/8/8/3pP3/8/8/7B b - e3 0 1";
+    let fen = "k7/8/8/8/3pP3/8/8/K6B b - e3 0 1";
     let board = Board::from_fen(fen).unwrap();
     let mut moves = MoveList::new();
     board.generate_legal_moves(&mut moves);
@@ -339,7 +339,7 @@ fn test_pinned_rook_can_only_move_along_pin_file() {
     // White Rook is pinned along file e.
     // Legal rook moves should only be along e-file: e2, e3, e5, e6, e7, e8 (capture).
     // Moving along rank 4 (a4, b4, c4, d4, f4, g4, h4) must be illegal!
-    let fen = "4r3/8/8/8/4R3/8/8/4K3 w - - 0 1";
+    let fen = "k3r3/8/8/8/4R3/8/8/4K3 w - - 0 1";
     let board = Board::from_fen(fen).unwrap();
     let mut moves = MoveList::new();
     board.generate_legal_moves(&mut moves);
@@ -367,7 +367,7 @@ fn test_pinned_bishop_can_only_move_along_diagonal() {
     // Bishop on c3 is pinned along diagonal a1-e5.
     // Bishop can move to b2 or capture e5.
     // Bishop cannot move to b4, d2, etc.!
-    let fen = "8/8/8/4q3/8/2B5/8/K7 w - - 0 1";
+    let fen = "7k/8/8/4q3/8/2B5/8/K7 w - - 0 1";
     let board = Board::from_fen(fen).unwrap();
     let mut moves = MoveList::new();
     board.generate_legal_moves(&mut moves);
@@ -389,7 +389,7 @@ fn test_pinned_queen_along_rank_cannot_move_along_file_or_diagonal() {
     // White King on a4, White Queen on d4, Black Rook on h4.
     // Queen is pinned along rank 4.
     // Queen can only move along rank 4: b4, c4, e4, f4, g4, h4 (capture).
-    let fen = "8/8/8/8/K2Q3r/8/8/8 w - - 0 1";
+    let fen = "k7/8/8/8/K2Q3r/8/8/8 w - - 0 1";
     let board = Board::from_fen(fen).unwrap();
     let mut moves = MoveList::new();
     board.generate_legal_moves(&mut moves);
@@ -411,7 +411,7 @@ fn test_pinned_pawn_along_file_can_push_but_cannot_capture() {
     // White King on e1, White Pawn on e2, Black Rook on e8.
     // Black pawn on d3 (attacks c2 and e2, does NOT check e1).
     // Pawn can push e2-e3 or e2-e4 along pin file, but CANNOT capture on d3!
-    let fen = "4r3/8/8/8/8/3p4/4P3/4K3 w - - 0 1";
+    let fen = "k3r3/8/8/8/8/3p4/4P3/4K3 w - - 0 1";
     let board = Board::from_fen(fen).unwrap();
     let mut moves = MoveList::new();
     board.generate_legal_moves(&mut moves);
@@ -425,7 +425,7 @@ fn test_pinned_pawn_along_file_can_push_but_cannot_capture() {
 fn test_pinned_pawn_diagonally_can_capture_pinner_but_cannot_push() {
     // White King on a1, White Pawn on b2, Black Bishop on c3.
     // Pawn can capture b2xc3, but CANNOT push b2-b3 or b2-b4!
-    let fen = "8/8/8/8/8/2b5/1P6/K7 w - - 0 1";
+    let fen = "7k/8/8/8/8/2b5/1P6/K7 w - - 0 1";
     let board = Board::from_fen(fen).unwrap();
     let mut moves = MoveList::new();
     board.generate_legal_moves(&mut moves);
@@ -446,7 +446,7 @@ fn test_double_check_forces_king_move_only() {
     // Black Bishop on a5 gives check along diagonal a5-e1.
     // White has Queen on d1, Rook on h1, Knight on c3, etc.
     // Double check! ONLY King moves are legal.
-    let fen = "4r3/8/8/b7/8/8/8/R2QK2R w KQ - 0 1";
+    let fen = "4r2k/8/8/b7/8/8/8/R2QK2R w KQ - 0 1";
     let board = Board::from_fen(fen).unwrap();
     let mut moves = MoveList::new();
     board.generate_legal_moves(&mut moves);
@@ -477,7 +477,7 @@ fn test_double_check_king_cannot_capture_defended_checker() {
     // Double check!
     // King on e4 attacks Knight on d6, but d6 is defended by pawn on c7!
     // King cannot capture d6!
-    let fen = "4r3/2p5/3n4/8/4K3/8/8/8 w - - 0 1";
+    let fen = "k3r3/2p5/3n4/8/4K3/8/8/8 w - - 0 1";
     let board = Board::from_fen(fen).unwrap();
     let mut moves = MoveList::new();
     board.generate_legal_moves(&mut moves);
@@ -500,7 +500,7 @@ fn test_ep_can_capture_checking_pawn() {
     // White King on e4, Black pawn just played d7-d5, giving check to King on e4!
     // White pawn on e5.
     // e5xd6 e.p. captures the checking pawn on d5 and evades check!
-    let fen = "8/8/8/3pP3/4K3/8/8/8 w - d6 0 1";
+    let fen = "k7/8/8/3pP3/4K3/8/8/8 w - d6 0 1";
     let board = Board::from_fen(fen).unwrap();
     let mut moves = MoveList::new();
     board.generate_legal_moves(&mut moves);
@@ -518,7 +518,7 @@ fn test_ep_cannot_be_played_if_it_does_not_resolve_check() {
     // Black just played d7-d5 (EP square d6). White pawn on e5.
     // e5xd6 e.p. does NOT resolve check from f8 rook!
     // Therefore e5xd6 e.p. must be illegal!
-    let fen = "5r2/8/8/3pP3/8/8/8/5K2 w - d6 0 1";
+    let fen = "k4r2/8/8/3pP3/8/8/8/5K2 w - d6 0 1";
     let board = Board::from_fen(fen).unwrap();
     let mut moves = MoveList::new();
     board.generate_legal_moves(&mut moves);

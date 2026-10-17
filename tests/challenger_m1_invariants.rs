@@ -510,7 +510,7 @@ fn test_adversarial_vertical_pinned_pawn_cannot_en_passant() {
     // White Pawn on E5 is vertically pinned to E1 King.
     // exd6 e.p. moves to D6 (changing files), which would expose King on E1 to E8 Rook.
     // Therefore exd6 e.p. MUST be ILLEGAL.
-    let fen = "4r3/8/8/3pP3/8/8/8/4K3 w - d6 0 1";
+    let fen = "k3r3/8/8/3pP3/8/8/8/4K3 w - d6 0 1";
     let board = Board::from_fen(fen).expect("valid FEN");
     let mut moves = MoveList::new();
     board.generate_legal_moves(&mut moves);
@@ -533,7 +533,7 @@ fn test_adversarial_double_check_only_king_can_move() {
     // White has a Bishop on C2 that could theoretically capture Knight on D3.
     // White has a Queen on D1 that could block E8 check on E2.
     // But in double check, ONLY King moves are legal!
-    let fen = "4r3/8/8/8/8/3n4/2B5/3QK3 w - - 0 1";
+    let fen = "k3r3/8/8/8/8/3n4/2B5/3QK3 w - - 0 1";
     let board = Board::from_fen(fen).expect("valid FEN");
     let mut moves = MoveList::new();
     board.generate_legal_moves(&mut moves);

@@ -109,6 +109,42 @@ pub fn parse_fen(fen: &str) -> Result<ParsedFen, ParseFenError> {
         }
     };
 
+    // Positions the movegen cannot handle: exactly one king per side, no pawns on rank 1/8.
+    let is = |sq: u8, c: char| piece_at[sq as usize] == Piece::from_char(c);
+    if (0..64).filter(|&sq| is(sq, 'K')).count() != 1
+        || (0..64).filter(|&sq| is(sq, 'k')).count() != 1
+        || (0..8).chain(56..64).any(|sq| is(sq, 'P') || is(sq, 'p'))
+    {
+        return Err(ParseFenError::InvalidPiecePlacement);
+    }
+
+    // Drop castling rights whose king or rook is not on its home square.
+    for (right, king, rook, k, r) in [
+        (WHITE_OO, 4, 7, 'K', 'R'),
+        (WHITE_OOO, 4, 0, 'K', 'R'),
+        (BLACK_OO, 60, 63, 'k', 'r'),
+        (BLACK_OOO, 60, 56, 'k', 'r'),
+    ] {
+        if !is(king, k) || !is(rook, r) {
+            castling_rights &= !right;
+        }
+    }
+
+    // EP target must sit behind an enemy pawn that just double-pushed: target and origin empty.
+    if let Some(ep) = ep_square {
+        let (target_rank, pawn_sq, origin_sq, pawn) = match side_to_move {
+            Color::White => (5, ep.wrapping_sub(8), ep.wrapping_add(8), 'p'),
+            Color::Black => (2, ep.wrapping_add(8), ep.wrapping_sub(8), 'P'),
+        };
+        if ep >> 3 != target_rank
+            || !is(pawn_sq, pawn)
+            || piece_at[ep as usize].is_some()
+            || piece_at[origin_sq as usize].is_some()
+        {
+            return Err(ParseFenError::InvalidEnPassant);
+        }
+    }
+
     let halfmove_clock = if fields.len() > 4 {
         fields[4].parse::<u16>().map_err(|_| ParseFenError::InvalidHalfmoveClock)?
     } else {
@@ -241,5 +277,25 @@ mod tests {
         assert!(parse_fen("8/8/8/8/8/8/8/8 w INVALID - 0 1").is_err());
         assert!(parse_fen("8/8/8/8/8/8/8/8 w - e9 0 1").is_err());
     }
-}
 
+    #[test]
+    fn test_fen_rejects_impossible_positions() {
+        let err = |fen: &str| parse_fen(fen).err();
+        assert_eq!(err("8/8/8/8/8/8/8/8 w - - 0 1"), Some(ParseFenError::InvalidPiecePlacement));
+        assert_eq!(err("4k3/8/8/8/8/8/8/4KK2 w - - 0 1"), Some(ParseFenError::InvalidPiecePlacement));
+        assert_eq!(err("P3k3/8/8/8/8/8/8/4K3 w - - 0 1"), Some(ParseFenError::InvalidPiecePlacement));
+        let start = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR";
+        assert_eq!(err(&format!("{start} w KQkq e3 0 1")), Some(ParseFenError::InvalidEnPassant));
+        assert_eq!(err(&format!("{start} w KQkq e6 0 1")), Some(ParseFenError::InvalidEnPassant));
+        // Legal EP after 1.e4 is still accepted.
+        let after_e4 = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
+        assert_eq!(parse_fen(after_e4).unwrap().ep_square, Some(20));
+    }
+
+    #[test]
+    fn test_fen_drops_castling_rights_without_pieces() {
+        assert_eq!(parse_fen("4k3/8/8/8/8/8/8/4K3 w KQkq - 0 1").unwrap().castling_rights, 0);
+        let only_h_rooks = parse_fen("4k2r/8/8/8/8/8/8/4K2R w KQkq - 0 1").unwrap();
+        assert_eq!(only_h_rooks.castling_rights, WHITE_OO | BLACK_OO);
+    }
+}

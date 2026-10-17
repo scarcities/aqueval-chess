@@ -387,7 +387,7 @@ fn test_en_passant_adversarial_pins_and_checks() {
     // White King on e5, White pawn on d5, Black pawn on c5, Black Rook on a5, Black King on h8.
     // e.p. square is c6. d5xc6 e.p. removes d5 and c5 pawns, opening a5 rook check on e5 king -> ILLEGAL!
     assert_synthetic_tactical_position(
-        "7k/8/8/r1PpK3/8/8/8/8 w - c6 0 1",
+        "7k/8/8/r1pPK3/8/8/8/8 w - c6 0 1",
         &[],
         &["d5c6"],
         3,
@@ -397,18 +397,18 @@ fn test_en_passant_adversarial_pins_and_checks() {
     // (b) King on h5, Rook on a5, White pawn on d5, Black pawn on c5, Black King on a8.
     // Pawn e.p. is still illegal because king is on the same rank 5!
     assert_synthetic_tactical_position(
-        "k7/8/8/r1Pp3K/8/8/8/8 w - c6 0 1",
+        "k7/8/8/r1pP3K/8/8/8/8 w - c6 0 1",
         &[],
         &["d5c6"],
         3,
         "EP horizontal rank pin (king on h5)",
     );
 
-    // (c) Horizontal rank 5 with a blocker: White King on h5, White Knight on f5, Black Rook on a5, White pawn on c5, Black pawn on d5, Black King on a8.
-    // Here, knight on f5 shields king on h5. c5xc6 e.p. IS LEGAL!
+    // (c) Horizontal rank 5 with a blocker: White King on h5, White Knight on f5, Black Rook on a5, Black pawn on c5, White pawn on d5, Black King on a8.
+    // Here, knight on f5 shields king on h5. d5xc6 e.p. IS LEGAL!
     assert_synthetic_tactical_position(
-        "k7/8/8/r1Pp1N1K/8/8/8/8 w - c6 0 1",
-        &["c5c6"],
+        "k7/8/8/r1pP1N1K/8/8/8/8 w - c6 0 1",
+        &["d5c6"],
         &[],
         3,
         "EP horizontal shielded by knight",

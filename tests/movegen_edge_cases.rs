@@ -73,7 +73,7 @@ fn test_castle_cannot_through_check() {
 #[test]
 fn test_castle_cannot_out_of_check() {
     // White king on e1 in check by black rook on e8
-    let fen = "4r3/8/8/8/8/8/8/R3K2R w KQ - 0 1";
+    let fen = "k3r3/8/8/8/8/8/8/R3K2R w KQ - 0 1";
     let board = Board::from_fen(fen).unwrap();
     let mut moves = MoveList::new();
     board.generate_legal_moves(&mut moves);
@@ -145,7 +145,7 @@ fn test_en_passant_horizontal_pin_illegal() {
     // White King on a5, White Pawn on c5, Black Pawn on d5, Black Rook on h5.
     // FEN: 8/8/8/K1Pp3r/8/8/8/8 w - d6 0 2
     // If White plays c5xd6 e.p., both pawns on rank 5 disappear and black rook checks White king!
-    let fen = "8/8/8/K1Pp3r/8/8/8/8 w - d6 0 2";
+    let fen = "k7/8/8/K1Pp3r/8/8/8/8 w - d6 0 2";
     let board = Board::from_fen(fen).unwrap();
     let mut moves = MoveList::new();
     board.generate_legal_moves(&mut moves);
@@ -179,7 +179,7 @@ fn test_en_passant_diagonal_pin_illegal() {
 #[test]
 fn test_pinned_knight_cannot_move() {
     // White King on e1, White Knight on e4, Black Rook on e8.
-    let fen = "4r3/8/8/8/4N3/8/8/4K3 w - - 0 1";
+    let fen = "k3r3/8/8/8/4N3/8/8/4K3 w - - 0 1";
     let board = Board::from_fen(fen).unwrap();
     let mut moves = MoveList::new();
     board.generate_legal_moves(&mut moves);

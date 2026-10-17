@@ -61,9 +61,12 @@ def main():
             r = subprocess.run(engine + ["divide", tok[2], fen], stdout=subprocess.PIPE,
                                stderr=subprocess.STDOUT, text=True, errors="replace")
             sys.stdout.write(r.stdout)
-            if r.returncode != 0:
-                print("info string engine exited with code %d" % r.returncode)
             sys.stdout.flush()
+            if r.returncode != 0 or "Nodes searched" not in r.stdout:
+                # Exit so the harness reports a crash (with the output above) instead of
+                # waiting for a total line that will never come; it restarts the shim.
+                print("cli_shim: engine exited with code %d" % r.returncode, flush=True)
+                sys.exit(r.returncode or 1)
         elif tok[0] == "quit":
             break
 

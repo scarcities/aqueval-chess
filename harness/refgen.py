@@ -42,13 +42,22 @@ class Position:
             rank = 7 - i
             f = 0
             for ch in row:
-                if ch.isdigit():
+                if ch in "12345678":
                     f += int(ch)
-                else:
+                elif ch in "PNBRQKpnbrqk" and f < 8:
                     self.board[rank * 16 + f] = ch
                     f += 1
+                else:
+                    raise ValueError("bad FEN board: %r" % fen)
+            if f != 8:
+                raise ValueError("FEN rank %d does not have 8 squares: %r" % (rank + 1, fen))
+        if parts[1] not in ("w", "b"):
+            raise ValueError("bad side to move in FEN: %r" % fen)
         self.white = parts[1] == "w"
         self.castling = "" if parts[2] == "-" else parts[2]
+        if parts[3] != "-" and not (len(parts[3]) == 2 and parts[3][0] in FILES
+                                    and parts[3][1] in "12345678"):
+            raise ValueError("bad en passant field in FEN: %r" % fen)
         self.ep = None if parts[3] == "-" else parse_sq(parts[3])
         self.kings = {}
         for sq in range(128):

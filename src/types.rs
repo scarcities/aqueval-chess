@@ -132,6 +132,7 @@ impl Square {
     #[inline(always)]
     pub fn from_u8(sq: u8) -> Self {
         debug_assert!(sq < 64);
+        // SAFETY: Square is #[repr(u8)] with variants 0..64; callers pass board squares (FEN parsing rejects anything else).
         unsafe { std::mem::transmute(sq) }
     }
 

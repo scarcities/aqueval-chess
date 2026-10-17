@@ -138,6 +138,7 @@ impl MoveList {
     #[inline(always)]
     pub fn push(&mut self, m: Move) {
         debug_assert!(self.count < 256, "MoveList capacity overflow");
+        // SAFETY: a legal chess position has at most 218 moves, below the 256 capacity.
         unsafe {
             *self.moves.get_unchecked_mut(self.count) = m;
         }

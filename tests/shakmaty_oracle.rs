@@ -113,16 +113,14 @@ fn test_shakmaty_random_walk_10k_positions() {
                     current_fen
                 );
 
-                // 3. Perft D2 cross-check (spot check every 5 positions to keep test fast)
-                if total_positions % 5 == 0 {
-                    let q_d2 = perft_quant(&mut quant_board, 2);
-                    let s_d2 = perft_shakmaty(&shak_pos, 2);
-                    assert_eq!(
-                        q_d2, s_d2,
-                        "Perft D2 mismatch at FEN: {}. Quant: {}, Shakmaty: {}",
-                        current_fen, q_d2, s_d2
-                    );
-                }
+                // 3. Perft D2 cross-check at every position (R5)
+                let q_d2 = perft_quant(&mut quant_board, 2);
+                let s_d2 = perft_shakmaty(&shak_pos, 2);
+                assert_eq!(
+                    q_d2, s_d2,
+                    "Perft D2 mismatch at FEN: {}. Quant: {}, Shakmaty: {}",
+                    current_fen, q_d2, s_d2
+                );
 
                 // If game over (no legal moves), stop game
                 if quant_moves.is_empty() {

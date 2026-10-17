@@ -8,6 +8,7 @@ static INIT: Once = Once::new();
 
 pub fn init() {
     INIT.call_once(|| {
+        // SAFETY: runs once under `Once` before any reader; every idx is offset + hash < TOTAL_ATTACK_ENTRIES by construction of the magic tables.
         unsafe {
             let table_ptr = std::ptr::addr_of_mut!(ATTACK_TABLE) as *mut Bitboard;
 
@@ -56,6 +57,7 @@ pub fn get_bishop_attacks(sq: u8, occ: Bitboard) -> Bitboard {
     let magic = &BISHOP_MAGICS[sq as usize];
     let blockers = occ.0 & magic.mask.0;
     let idx = magic.offset + ((blockers.wrapping_mul(magic.magic) >> magic.shift) as usize);
+    // SAFETY: table is only written inside `init`'s `Once`; idx < TOTAL_ATTACK_ENTRIES because blockers are masked to the magic's mask.
     unsafe {
         let ptr = std::ptr::addr_of!(ATTACK_TABLE) as *const Bitboard;
         *ptr.add(idx)
@@ -68,6 +70,7 @@ pub fn get_rook_attacks(sq: u8, occ: Bitboard) -> Bitboard {
     let magic = &ROOK_MAGICS[sq as usize];
     let blockers = occ.0 & magic.mask.0;
     let idx = magic.offset + ((blockers.wrapping_mul(magic.magic) >> magic.shift) as usize);
+    // SAFETY: table is only written inside `init`'s `Once`; idx < TOTAL_ATTACK_ENTRIES because blockers are masked to the magic's mask.
     unsafe {
         let ptr = std::ptr::addr_of!(ATTACK_TABLE) as *const Bitboard;
         *ptr.add(idx)

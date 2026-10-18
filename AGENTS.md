@@ -40,6 +40,7 @@ Invariants: no heap allocation in movegen, make/unmake or search recursion; `sha
 | Fancy magics vs PEXT for sliders | Magics chosen: PEXT is microcoded (~18 cycles) on Zen+, magics use one `imul`. Bulk perft reaches ~140 Mnps. |
 | Stack `MoveList` vs `Vec` | Stack array kept: zero heap allocations in movegen. |
 | Strict legal movegen vs pseudo-legal + check | Legal generation kept: lets perft bulk-count at the last ply. |
+| Aspiration windows (fail-hard search, ±25 from depth 4 and ±50 from depth 6) | Not merged: both ~+4 Elo, SPRT [0, 5] undecided after 4000 games each. Code on branches `p2/aspiration`, `p2/aspiration-v2`. Worth retrying after a fail-soft search. |
 
 ## SPRT log
 
@@ -59,6 +60,8 @@ Run with `scripts/run_sprt.sh`, one test at a time, fastchess concurrency 10 (2 
 | Null move pruning (vs killers/history) | [0, 10] | H1 accepted | +111 ± 36 | 336 |
 | Late move reductions (vs null move pruning) | [0, 10] | H1 accepted | +96 ± 32 | 356 |
 | Reverse futility pruning (vs LMR) | [0, 10] | H1 accepted | +130 ± 38 | 282 |
+| Aspiration windows ±25 from depth 4 (vs RFP) | [0, 5] | failed: no decision at 4000-game cap | +4.5 ± 8.8 | 4000 |
+| Aspiration windows ±50 from depth 6, the one variation (vs RFP) | [0, 5] | failed: no decision at 4000-game cap | +4.1 ± 8.5 | 4000 |
 
 ## Future roadmap
 

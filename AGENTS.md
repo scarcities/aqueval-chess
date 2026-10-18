@@ -62,6 +62,7 @@ Run with `scripts/run_sprt.sh`, one test at a time, fastchess concurrency 10 (2 
 | Reverse futility pruning (vs LMR) | [0, 10] | H1 accepted | +130 ± 38 | 282 |
 | Aspiration windows ±25 from depth 4 (vs RFP) | [0, 5] | failed: no decision at 4000-game cap | +4.5 ± 8.8 | 4000 |
 | Aspiration windows ±50 from depth 6, the one variation (vs RFP) | [0, 5] | failed: no decision at 4000-game cap | +4.1 ± 8.5 | 4000 |
+| Check extensions (vs RFP; aspiration not merged) | [0, 5] | H1 accepted | +38 ± 14 | 1666 |
 
 ## Future roadmap
 

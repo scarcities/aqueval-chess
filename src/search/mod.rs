@@ -164,15 +164,21 @@ fn alpha_beta(
         }
     }
 
+    let prunable = beta - alpha == 1 && ply > 0 && !in_check;
+    let static_eval = if prunable { evaluate(board) } else { 0 };
+
+    // Reverse futility pruning: near the leaves, a static eval far above beta holds.
+    if prunable && depth <= 6 && beta.abs() < MATE_THRESHOLD && static_eval - 80 * depth as i32 >= beta {
+        return static_eval;
+    }
+
     // Null move pruning: if passing still fails high, a real move will too. Not in PV nodes,
     // in check, twice in a row, or without pieces (pawn endgames are prone to zugzwang).
-    if beta - alpha == 1
-        && ply > 0
+    if prunable
         && depth >= 3
         && !ctx.heur.null_at[ply - 1]
         && has_non_pawn_material(board)
-        && !in_check
-        && evaluate(board) >= beta
+        && static_eval >= beta
     {
         let r = 3 + depth / 4;
         board.make_null_move();

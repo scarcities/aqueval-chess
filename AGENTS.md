@@ -41,6 +41,7 @@ Invariants: no heap allocation in movegen, make/unmake or search recursion; `sha
 | Stack `MoveList` vs `Vec` | Stack array kept: zero heap allocations in movegen. |
 | Strict legal movegen vs pseudo-legal + check | Legal generation kept: lets perft bulk-count at the last ply. |
 | Aspiration windows (fail-hard search, ±25 from depth 4 and ±50 from depth 6) | Not merged: both ~+4 Elo, SPRT [0, 5] undecided after 4000 games each. Code on branches `p2/aspiration`, `p2/aspiration-v2`. Worth retrying after a fail-soft search. |
+| Late move pruning (move-count based, no history) | Not merged: −21 Elo, conservative variant ~−4. Code on `p2/lmp-main`, `p2/lmp-v2`. Retry with history-aware move counts / an "improving" flag. |
 
 ## SPRT log
 
@@ -63,6 +64,8 @@ Run with `scripts/run_sprt.sh`, one test at a time, fastchess concurrency 10 (2 
 | Aspiration windows ±25 from depth 4 (vs RFP) | [0, 5] | failed: no decision at 4000-game cap | +4.5 ± 8.8 | 4000 |
 | Aspiration windows ±50 from depth 6, the one variation (vs RFP) | [0, 5] | failed: no decision at 4000-game cap | +4.1 ± 8.5 | 4000 |
 | Check extensions (vs RFP; aspiration not merged) | [0, 5] | H1 accepted | +38 ± 14 | 1666 |
+| Late move pruning, depth ≤ 4, after 3 + depth² quiets (vs check extensions) | [0, 5] | H0 accepted | −21 ± 11 | 2576 |
+| Late move pruning, depth ≤ 3, after 5 + 2·depth², the one variation (vs check extensions) | [0, 5] | failed: −4 ± 10, LLR −0.99 when the run died at 3284 games (machine offline); H1 out of reach before the 4000 cap, not rerun | −3.9 ± 9.8 | 3284 |
 
 ## Future roadmap
 

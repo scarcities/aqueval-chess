@@ -459,10 +459,10 @@ pub fn search(
             heur: &mut heur,
         };
 
-        // Aspiration window around the last score from depth 4 on; widen the failing side
+        // Aspiration window around the last score from depth 6 on; widen the failing side
         // (doubling the margin) until the score lands inside.
-        let (mut lo, mut hi, mut delta) = if current_depth >= 4 {
-            ((best_score - 25).max(-32000), (best_score + 25).min(32000), 25)
+        let (mut lo, mut hi, mut delta) = if current_depth >= 6 {
+            ((best_score - 50).max(-32000), (best_score + 50).min(32000), 50)
         } else {
             (-32000, 32000, 25)
         };

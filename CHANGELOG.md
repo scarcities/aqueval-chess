@@ -4,8 +4,8 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
-### Aspiration windows (bench 116403 → 117727)
-- From depth 4 the root searches [last score ± 25]; on a fail-low or fail-high only that side is widened, doubling the margin each time, until the score falls inside. Root search moved into `search_root`.
+### Aspiration windows (variant 2: bench unchanged at 116403, window starts at depth 6, beyond the depth-5 bench)
+- From depth 6 the root searches [last score ± 50] (first try, ±25 from depth 4, was neutral in SPRT); on a fail-low or fail-high only that side is widened, doubling the margin each time, until the score falls inside. Root search moved into `search_root`.
 
 ### Reverse futility pruning (bench 216428 → 116403)
 - At null-window nodes not in check with depth ≤ 6: return the static eval if it beats beta by 80·depth (not near mate scores). Static eval is now computed once per such node and shared with null move pruning.

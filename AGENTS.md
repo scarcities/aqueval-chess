@@ -29,7 +29,7 @@ Invariants: no heap allocation in movegen, make/unmake or search recursion; `sha
   | SF 17, UCI_Elo 2300 | 10+0.1 | 200 | 86.5 (43.3 %) | −47 ± 44 | ~2252 |
 
   Levels picked from a 20-game probe at 1400/1700/2000/2300. Rerun: `scripts/elo_gauntlet.sh` with `LEVELS="2000 2300"`.
-- **Bench signature:** 372854
+- **Bench signature:** 216428
 - **Perft 6 startpos:** see CHANGELOG.md for nps (bulk and non-bulk).
 - **Roadmap:** Phase 1 (Foundation) complete. Next: Phase 2 (Search).
 
@@ -55,6 +55,7 @@ Run with `scripts/run_sprt.sh`, one test at a time, fastchess concurrency 10 (2 
 | Move ordering: TT move + MVV-LVA (vs TT) | [0, 10] | H1 accepted | +102 ± 33 | 362 |
 | Killer moves + history heuristic (vs TT/MVV-LVA ordering) | [0, 10] | H1 accepted | +33 ± 17 | 1028 (rerun; first run cut off at 1658 games by sleep) |
 | Null move pruning (vs killers/history) | [0, 10] | H1 accepted | +111 ± 36 | 336 |
+| Late move reductions (vs null move pruning) | [0, 10] | H1 accepted | +96 ± 32 | 356 |
 
 ## Future roadmap
 

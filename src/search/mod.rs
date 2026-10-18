@@ -69,6 +69,51 @@ struct SearchContext<'a> {
     limits: &'a SearchLimits,
     stats: &'a mut SearchStats,
     tt: &'a mut TranspositionTable,
+    heur: &'a mut Heuristics,
+}
+
+const MAX_PLY: usize = 128;
+
+/// Quiet-move ordering data for one search: two killers per ply and butterfly history
+/// indexed by [side][from][to]. Boxed once per `go`, never allocated in the tree.
+struct Heuristics {
+    killers: [[Move; 2]; MAX_PLY],
+    history: [[[i32; 64]; 64]; 2],
+}
+
+impl Heuristics {
+    fn new() -> Box<Self> {
+        Box::new(Self {
+            killers: [[Move::NULL; 2]; MAX_PLY],
+            history: [[[0; 64]; 64]; 2],
+        })
+    }
+
+    /// Records a quiet move that caused a beta cutoff.
+    fn update(&mut self, side: usize, ply: usize, m: Move, depth: usize) {
+        if self.killers[ply][0] != m {
+            self.killers[ply][1] = self.killers[ply][0];
+            self.killers[ply][0] = m;
+        }
+        let h = &mut self.history[side][m.from_sq() as usize][m.to_sq() as usize];
+        // Capped below the killer scores so killers stay ahead of history.
+        *h = (*h + (depth * depth) as i32).min(700_000);
+    }
+
+    /// Ordering key: TT/best move, captures (MVV-LVA), killers, then quiet moves by history.
+    fn order_key(&self, board: &Board, m: Move, tt_move: Move, ply: usize) -> i32 {
+        if m == tt_move {
+            i32::MAX
+        } else if m.is_capture() {
+            1_000_000 + mvv_lva(board, m)
+        } else if m == self.killers[ply][0] {
+            900_000
+        } else if m == self.killers[ply][1] {
+            800_000
+        } else {
+            self.history[board.side_to_move.index()][m.from_sq() as usize][m.to_sq() as usize]
+        }
+    }
 }
 
 /// Recursively evaluates positions using alpha-beta pruning.
@@ -126,9 +171,9 @@ fn alpha_beta(
         }
     }
 
-    // In-place sort captures before quiets (zero heap allocation)
-    // TT move first, then captures by MVV-LVA, then quiet moves (unstable sort: no allocation).
-    moves.moves[..moves.count].sort_unstable_by_key(|&m| std::cmp::Reverse(order_key(board, m, tt_move)));
+    // Unstable sort: no allocation.
+    let heur = &*ctx.heur;
+    moves.moves[..moves.count].sort_unstable_by_key(|&m| std::cmp::Reverse(heur.order_key(board, m, tt_move, ply)));
 
     let mut best_move = Move::NULL;
     for (i, &m) in moves.as_slice().iter().enumerate() {
@@ -141,6 +186,9 @@ fn alpha_beta(
         }
 
         if score >= beta {
+            if !m.is_capture() {
+                ctx.heur.update(board.side_to_move.index(), ply, m, depth);
+            }
             ctx.tt.store(key, m, beta, depth as i32, Bound::Lower, ply);
             return beta;
         }
@@ -175,17 +223,6 @@ fn pvs_child(
         -alpha_beta(board, depth, ply, -beta, -alpha, ctx)
     } else {
         score
-    }
-}
-
-/// Move ordering key: TT/best move, then captures (MVV-LVA), then quiet moves.
-fn order_key(board: &Board, m: Move, tt_move: Move) -> i32 {
-    if m == tt_move {
-        i32::MAX
-    } else if m.is_capture() {
-        1_000_000 + mvv_lva(board, m)
-    } else {
-        0
     }
 }
 
@@ -274,6 +311,7 @@ pub fn search(
         nodes: 0,
         start_time: Instant::now(),
     };
+    let mut heur = Heuristics::new();
 
     let mut root_moves = MoveList::new();
     board.generate_legal_moves(&mut root_moves);
@@ -331,13 +369,14 @@ pub fn search(
         let mut depth_best_score = -32000;
 
         // Order root moves: place current best_move first, then captures
-        candidate_moves.sort_by_key(|&m| std::cmp::Reverse(order_key(board, m, best_move)));
+        candidate_moves.sort_by_key(|&m| std::cmp::Reverse(heur.order_key(board, m, best_move, 0)));
 
         let mut ctx = SearchContext {
             stop_flag,
             limits,
             stats: &mut stats,
             tt: &mut *tt,
+            heur: &mut heur,
         };
 
         for (i, &m) in candidate_moves.iter().enumerate() {

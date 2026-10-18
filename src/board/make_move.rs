@@ -132,6 +132,33 @@ impl Board {
         undo
     }
 
+    /// Passes the turn (null move pruning). Not legal when in check.
+    pub fn make_null_move(&mut self) {
+        let undo = UndoState {
+            captured_piece: None,
+            castling_rights: self.castling_rights,
+            ep_square: self.ep_square,
+            halfmove_clock: self.halfmove_clock,
+            zobrist_hash: self.zobrist_hash,
+        };
+        if let Some(ep) = self.ep_square.take() {
+            self.zobrist_hash ^= ep_key(ep & 7);
+        }
+        // Clock 0 so repetition detection never looks across the null move.
+        self.halfmove_clock = 0;
+        self.side_to_move = !self.side_to_move;
+        self.zobrist_hash ^= side_key();
+        self.history.push(undo);
+    }
+
+    pub fn unmake_null_move(&mut self) {
+        let undo = self.history.pop().expect("null move on history");
+        self.ep_square = undo.ep_square;
+        self.halfmove_clock = undo.halfmove_clock;
+        self.zobrist_hash = undo.zobrist_hash;
+        self.side_to_move = !self.side_to_move;
+    }
+
     pub fn unmake_move(&mut self, m: Move, undo: &UndoState) {
         let us = !self.side_to_move; // Player who made move `m`
         let them = self.side_to_move;
@@ -202,5 +229,22 @@ impl Board {
 
         // 7. Restore side to move
         self.side_to_move = us;
+    }
+}
+
+#[cfg(test)]
+mod null_move_tests {
+    use crate::board::Board;
+
+    #[test]
+    fn test_null_move_roundtrip() {
+        // EP square set so the null move must also clear and restore it.
+        let mut b = Board::from_fen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1").unwrap();
+        let before = b.clone();
+        b.make_null_move();
+        assert_eq!(b.zobrist_hash(), b.calculate_zobrist());
+        assert_eq!(b.ep_square(), None);
+        b.unmake_null_move();
+        assert_eq!(b, before);
     }
 }

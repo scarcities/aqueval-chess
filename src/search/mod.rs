@@ -79,6 +79,8 @@ const MAX_PLY: usize = 128;
 struct Heuristics {
     killers: [[Move; 2]; MAX_PLY],
     history: [[[i32; 64]; 64]; 2],
+    /// `null_at[ply]`: the move made at `ply` was a null move (no two in a row).
+    null_at: [bool; MAX_PLY],
 }
 
 impl Heuristics {
@@ -86,6 +88,7 @@ impl Heuristics {
         Box::new(Self {
             killers: [[Move::NULL; 2]; MAX_PLY],
             history: [[[0; 64]; 64]; 2],
+            null_at: [false; MAX_PLY],
         })
     }
 
@@ -160,6 +163,30 @@ fn alpha_beta(
         }
     }
 
+    // Null move pruning: if passing still fails high, a real move will too. Not in PV nodes,
+    // in check, twice in a row, or without pieces (pawn endgames are prone to zugzwang).
+    if beta - alpha == 1
+        && ply > 0
+        && depth >= 3
+        && !ctx.heur.null_at[ply - 1]
+        && has_non_pawn_material(board)
+        && !board.is_in_check()
+        && evaluate(board) >= beta
+    {
+        let r = 3 + depth / 4;
+        board.make_null_move();
+        ctx.heur.null_at[ply] = true;
+        let score = -alpha_beta(board, depth.saturating_sub(1 + r), ply + 1, -beta, -beta + 1, ctx);
+        ctx.heur.null_at[ply] = false;
+        board.unmake_null_move();
+        if ctx.stop_flag.load(Ordering::Relaxed) {
+            return 0;
+        }
+        if score >= beta {
+            return beta;
+        }
+    }
+
     let mut moves = MoveList::new();
     board.generate_legal_moves(&mut moves);
 
@@ -224,6 +251,12 @@ fn pvs_child(
     } else {
         score
     }
+}
+
+fn has_non_pawn_material(board: &Board) -> bool {
+    let ours = board.colors[board.side_to_move.index()];
+    let pawns_kings = board.pieces[PieceType::Pawn.index()] | board.pieces[PieceType::King.index()];
+    (ours & !pawns_kings).is_not_empty()
 }
 
 /// MVV-LVA key: most valuable victim first, then least valuable attacker.

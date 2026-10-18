@@ -227,11 +227,11 @@ fn alpha_beta(
         // Futility pruning: at frontier null-window nodes whose static eval is far below
         // alpha, quiet moves that do not give check cannot catch up.
         if prunable
-            && depth <= 3
+            && depth <= 4
             && i > 0
             && quiet
             && alpha > -MATE_THRESHOLD
-            && static_eval + 150 * depth as i32 <= alpha
+            && static_eval + 80 + 80 * depth as i32 <= alpha
             && !board.is_in_check()
         {
             board.unmake_move(m, &undo);

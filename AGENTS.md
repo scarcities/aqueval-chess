@@ -44,7 +44,7 @@ Invariants: no heap allocation in movegen, make/unmake or search recursion; `sha
 | Strict legal movegen vs pseudo-legal + check | Legal generation kept: lets perft bulk-count at the last ply. |
 | Aspiration windows (fail-hard search, ±25 from depth 4 and ±50 from depth 6) | Not merged: both ~+4 Elo, SPRT [0, 5] undecided after 4000 games each. Code on branches `p2/aspiration`, `p2/aspiration-v2`. Worth retrying after a fail-soft search. |
 | Late move pruning (move-count based, no history) | Not merged: −21 Elo, conservative variant ~−4. Code on `p2/lmp-main`, `p2/lmp-v2`. Retry with history-aware move counts / an "improving" flag. |
-| Futility pruning (static eval margin, fail-hard) | Not merged under the 4000-game cap, but both tries were positive (+10 and +13 Elo). Code on `p2/futility-nolmp`, `p2/futility-v2`. Best candidate to retest with a longer SPRT. |
+| Futility pruning (static eval margin, fail-hard) | Undecided twice under a 4000-game cap (+10, +13); passed the 2026-10-19 retest (+10.2 ± 6.5, 6652 games) and merged. |
 
 ## SPRT log
 
@@ -71,6 +71,12 @@ Run with `scripts/run_sprt.sh`, one test at a time, fastchess concurrency 10 (2 
 | Late move pruning, depth ≤ 3, after 5 + 2·depth², the one variation (vs check extensions) | [0, 5] | failed: −4 ± 10, LLR −0.99 when the run died at 3284 games (machine offline); H1 out of reach before the 4000 cap, not rerun | −3.9 ± 9.8 | 3284 |
 | Futility pruning, depth ≤ 3, margin 150·depth (vs check extensions) | [0, 5] | failed: no decision at 4000-game cap (LLR 1.69) | +9.6 ± 8.2 | 4000 |
 | Futility pruning, depth ≤ 4, margin 80 + 80·depth, the one variation (vs check extensions) | [0, 5] | failed: no decision at 4000-game cap (LLR 2.25) | +12.8 ± 8.6 | 4000 |
+
+**Queue 2026-10-19:** inconclusive results (no decision at the game cap) are logged as "inconclusive" with the Elo estimate. Caps: 15,000 games for [0, 5], 20,000 for futility and the aspiration retest.
+
+| Change | Bounds | Result | Elo | Games |
+|---|---|---|---|---|
+| Futility pruning retest, depth ≤ 4, margin 80 + 80·depth (vs main with bench depth 11) | [0, 5] | H1 accepted | +10.2 ± 6.5 | 6652 |
 
 ## Future roadmap
 

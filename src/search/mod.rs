@@ -247,6 +247,12 @@ fn alpha_beta(
         }
     }
 
+    // Internal iterative reduction: without a TT move this node was never searched (or its
+    // move was useless), so search it one ply shallower instead of paying for a full depth.
+    if tt_move == Move::NULL && depth >= 4 {
+        depth -= 1;
+    }
+
     let prunable = beta - alpha == 1 && ply > 0 && !in_check;
     let static_eval = if in_check { NO_EVAL } else { evaluate(board) };
     ctx.heur.eval_at[ply] = static_eval;

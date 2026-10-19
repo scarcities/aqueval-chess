@@ -78,6 +78,7 @@ Run with `scripts/run_sprt.sh`, one test at a time, fastchess concurrency 10 (2 
 |---|---|---|---|---|
 | Futility pruning retest, depth ≤ 4, margin 80 + 80·depth (vs main with bench depth 11) | [0, 5] | H1 accepted | +10.2 ± 6.5 | 6652 |
 | SEE: good/bad capture ordering, SEE pruning in qsearch and main search (vs futility) | [0, 10] | H1 accepted | +122 ± 35 | 290 |
+| Capture history, ordering weight /32 (vs SEE) | [0, 5] | H0 accepted | −5.7 ± 6.2 | 7346 |
 
 ## Future roadmap
 

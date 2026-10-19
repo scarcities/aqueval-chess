@@ -316,6 +316,11 @@ fn alpha_beta(
     let mut quiets_tried = 0;
     for (i, &m) in moves.as_slice().iter().enumerate() {
         let quiet = !m.is_capture() && m.promotion_piece().is_none() && !ctx.heur.killers[ply].contains(&m);
+        // Late move pruning: at shallow null-window nodes skip quiet moves after the first
+        // (3 + depth²) / 2, or 3 + depth² when the position is improving.
+        if prunable && depth <= 6 && quiet && alpha > -MATE_THRESHOLD && i >= (3 + depth * depth) / (2 - improving as usize) {
+            continue;
+        }
         // SEE pruning: at shallow null-window nodes skip moves that lose too much material.
         if prunable && i > 0 && depth <= 6 && alpha > -MATE_THRESHOLD {
             let margin = if m.is_capture() { -100 } else { -50 } * depth as i32;

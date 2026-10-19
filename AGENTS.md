@@ -45,6 +45,7 @@ Invariants: no heap allocation in movegen, make/unmake or search recursion; `sha
 | Aspiration windows (fail-hard search, ±25 from depth 4 and ±50 from depth 6) | Not merged: both ~+4 Elo, SPRT [0, 5] undecided after 4000 games each. Code on branches `p2/aspiration`, `p2/aspiration-v2`. Worth retrying after a fail-soft search. |
 | Late move pruning (move-count based, no history) | Not merged: −21 Elo, conservative variant ~−4. Code on `p2/lmp-main`, `p2/lmp-v2`. Retry with history-aware move counts / an "improving" flag. |
 | Futility pruning (static eval margin, fail-hard) | Undecided twice under a 4000-game cap (+10, +13); passed the 2026-10-19 retest (+10.2 ± 6.5, 6652 games) and merged. |
+| Capture history (gravity table, bonus/malus on capture cutoffs, added to MVV-LVA) | Not merged: −5.7 (/32) and −5.1 (/8), H0 both times on top of SEE ordering. Code on `q5-caphist`, `q5b-caphist`. Retry using it in the SEE threshold / capture pruning rather than only ordering. |
 
 ## SPRT log
 
@@ -79,6 +80,7 @@ Run with `scripts/run_sprt.sh`, one test at a time, fastchess concurrency 10 (2 
 | Futility pruning retest, depth ≤ 4, margin 80 + 80·depth (vs main with bench depth 11) | [0, 5] | H1 accepted | +10.2 ± 6.5 | 6652 |
 | SEE: good/bad capture ordering, SEE pruning in qsearch and main search (vs futility) | [0, 10] | H1 accepted | +122 ± 35 | 290 |
 | Capture history, ordering weight /32 (vs SEE) | [0, 5] | H0 accepted | −5.7 ± 6.2 | 7346 |
+| Capture history, ordering weight /8, the one variation (vs SEE) | [0, 5] | H0 accepted | −5.1 ± 6.2 | 8192 |
 
 ## Future roadmap
 

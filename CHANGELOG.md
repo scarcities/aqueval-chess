@@ -4,6 +4,9 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### Futility pruning (bench 6398189 → 4533123)
+- At null-window nodes not in check with depth ≤ 4: once one move is searched, quiet non-killer moves that do not give check are skipped when static eval + 80 + 80·depth ≤ alpha. (The better of two earlier tries, +12.8 ± 8.6 but undecided at 4000 games; retested with a 20,000-game cap.)
+
 ### Bench depth 5 → 11 (bench 125351 → 6398189, no search change)
 - Depth 5 was only ~125k nodes and never reached depth-6+ code paths (e.g. aspiration windows from depth 6). Depth 11 covers them: ~6.4M nodes, ~2 s on the reference machine.
 

@@ -75,12 +75,22 @@ struct SearchContext<'a> {
 }
 
 const MAX_PLY: usize = 128;
+const CAPHIST_MAX: i32 = 16384;
+
+/// (moving piece type, captured piece type) indices of a capture; en passant captures a pawn.
+fn capture_types(board: &Board, m: Move) -> (usize, usize) {
+    let attacker = board.piece_at(m.from_sq()).map_or(0, |p| p.piece_type.index());
+    let victim = if m.is_en_passant() { 0 } else { board.piece_at(m.to_sq()).map_or(0, |p| p.piece_type.index()) };
+    (attacker, victim)
+}
 
 /// Quiet-move ordering data for one search: two killers per ply and butterfly history
 /// indexed by [side][from][to]. Boxed once per `go`, never allocated in the tree.
 struct Heuristics {
     killers: [[Move; 2]; MAX_PLY],
     history: [[[i32; 64]; 64]; 2],
+    /// Capture history [moving piece type][to][captured piece type], kept in ±CAPHIST_MAX.
+    caphist: [[[i32; 6]; 64]; 6],
     /// `null_at[ply]`: the move made at `ply` was a null move (no two in a row).
     null_at: [bool; MAX_PLY],
 }
@@ -90,6 +100,7 @@ impl Heuristics {
         Box::new(Self {
             killers: [[Move::NULL; 2]; MAX_PLY],
             history: [[[0; 64]; 64]; 2],
+            caphist: [[[0; 6]; 64]; 6],
             null_at: [false; MAX_PLY],
         })
     }
@@ -105,6 +116,22 @@ impl Heuristics {
         *h = (*h + (depth * depth) as i32).min(700_000);
     }
 
+    fn caphist_slot(&mut self, board: &Board, m: Move) -> &mut i32 {
+        let (attacker, victim) = capture_types(board, m);
+        &mut self.caphist[attacker][m.to_sq() as usize][victim]
+    }
+
+    /// Rewards the capture that caused a cutoff and punishes the captures tried before it.
+    fn update_captures(&mut self, board: &Board, best: Move, tried: &[Move], depth: usize) {
+        let bonus = (16 * depth * depth).min(1200) as i32;
+        for &m in tried {
+            let b = if m == best { bonus } else { -bonus };
+            let h = self.caphist_slot(board, m);
+            // Gravity: entries saturate at ±CAPHIST_MAX instead of growing without bound.
+            *h += b - *h * b.abs() / CAPHIST_MAX;
+        }
+    }
+
     /// Ordering key: TT/best move, good captures (SEE ≥ 0, by MVV-LVA), killers, quiet moves
     /// by history, then losing captures last.
     fn order_key(&self, board: &Board, m: Move, tt_move: Move, ply: usize) -> i32 {
@@ -112,7 +139,8 @@ impl Heuristics {
             i32::MAX
         } else if m.is_capture() {
             let base = if see_ge(board, m, 0) { 1_000_000 } else { -1_000_000 };
-            base + mvv_lva(board, m)
+            let (attacker, victim) = capture_types(board, m);
+            base + mvv_lva(board, m) + self.caphist[attacker][m.to_sq() as usize][victim] / 32
         } else if m == self.killers[ply][0] {
             900_000
         } else if m == self.killers[ply][1] {
@@ -232,6 +260,8 @@ fn alpha_beta(
 
     let mut best_move = Move::NULL;
     let pv_node = beta - alpha > 1;
+    let mut tried_captures = [Move::NULL; 32];
+    let mut captures_tried = 0;
     for (i, &m) in moves.as_slice().iter().enumerate() {
         let quiet = !m.is_capture() && m.promotion_piece().is_none() && !ctx.heur.killers[ply].contains(&m);
         // SEE pruning: at shallow null-window nodes skip moves that lose too much material.
@@ -269,9 +299,15 @@ fn alpha_beta(
             return 0;
         }
 
+        if m.is_capture() && captures_tried < tried_captures.len() {
+            tried_captures[captures_tried] = m;
+            captures_tried += 1;
+        }
         if score >= beta {
             if !m.is_capture() {
                 ctx.heur.update(board.side_to_move.index(), ply, m, depth);
+            } else {
+                ctx.heur.update_captures(board, m, &tried_captures[..captures_tried], depth);
             }
             ctx.tt.store(key, m, beta, depth as i32, Bound::Lower, ply);
             return beta;

@@ -140,7 +140,7 @@ impl Heuristics {
         } else if m.is_capture() {
             let base = if see_ge(board, m, 0) { 1_000_000 } else { -1_000_000 };
             let (attacker, victim) = capture_types(board, m);
-            base + mvv_lva(board, m) + self.caphist[attacker][m.to_sq() as usize][victim] / 32
+            base + mvv_lva(board, m) + self.caphist[attacker][m.to_sq() as usize][victim] / 8
         } else if m == self.killers[ply][0] {
             900_000
         } else if m == self.killers[ply][1] {

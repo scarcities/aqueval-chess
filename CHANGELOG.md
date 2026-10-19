@@ -4,9 +4,9 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
-### Capture history (bench 2458792 → 2383093)
+### Capture history, variant 2 (bench 2458792 → 2405295)
 - Table [moving piece][to][captured piece] with gravity (saturates at ±16384). A capture that fails high gets +min(16·depth², 1200); captures tried before it at that node get the same as a malus.
-- Capture ordering key: SEE class (good/bad), then MVV-LVA + capture history / 32.
+- Capture ordering key: SEE class (good/bad), then MVV-LVA + capture history / 8 (variant 2; / 32 was the first try).
 
 ### SEE: capture ordering and SEE pruning (bench 4533123 → 2458792)
 - New `search::see::see_ge` (swap algorithm with x-rays; castling, en passant and promotions count as 0).

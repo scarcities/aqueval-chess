@@ -4,6 +4,10 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### "Improving" heuristic (bench 2309154 → 1387095)
+- Static eval is now stored per ply; a node is improving when its eval beats the eval at our previous turn (2 plies back, or 4 if we were in check). Static eval is now computed at every node not in check.
+- RFP margin 80·(depth − improving); LMR reduces one ply more when not improving; futility margin 80·depth + 80 when improving, + 40 when not.
+
 ### Continuation history, variant 2 (bench 2430886 → 2309154)
 - Table [previous piece][previous to][piece][to] (flat, 2.4 MB per search, allocated once per `go`), looked up with the moves 1 and 2 plies back. A quiet cutoff gives +min(16·depth², 1200) to the cutoff move and the same malus to the quiets tried before it, with gravity at ±16384.
 - Quiet ordering key: butterfly history + 2 × (both continuation scores) (variant 2; weight 1 was undecided).

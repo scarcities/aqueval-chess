@@ -77,6 +77,7 @@ struct SearchContext<'a> {
 const MAX_PLY: usize = 128;
 const CONT_MAX: i32 = 16384;
 const NO_PIECE: usize = 12;
+const NO_EVAL: i32 = i32::MIN;
 
 /// Quiet-move ordering data for one search: two killers per ply and butterfly history
 /// indexed by [side][from][to]. Boxed once per `go`, never allocated in the tree.
@@ -89,6 +90,8 @@ struct Heuristics {
     counter: [[Move; 64]; 12],
     /// Moving piece (colour·6 + type) of `moves_at[ply]`; NO_PIECE for a null move.
     piece_at_ply: [usize; MAX_PLY],
+    /// Static eval per ply on the current path (NO_EVAL when in check), for "improving".
+    eval_at: [i32; MAX_PLY],
     /// Continuation history [prev piece][prev to][piece][to], flat, shared by the 1- and 2-ply lookups.
     cont: Vec<i32>,
     /// `null_at[ply]`: the move made at `ply` was a null move (no two in a row).
@@ -103,6 +106,7 @@ impl Heuristics {
             moves_at: [Move::NULL; MAX_PLY],
             counter: [[Move::NULL; 64]; 12],
             piece_at_ply: [NO_PIECE; MAX_PLY],
+            eval_at: [NO_EVAL; MAX_PLY],
             cont: vec![0; 12 * 64 * 12 * 64],
             null_at: [false; MAX_PLY],
         })
@@ -244,10 +248,19 @@ fn alpha_beta(
     }
 
     let prunable = beta - alpha == 1 && ply > 0 && !in_check;
-    let static_eval = if prunable { evaluate(board) } else { 0 };
+    let static_eval = if in_check { NO_EVAL } else { evaluate(board) };
+    ctx.heur.eval_at[ply] = static_eval;
+    // "Improving": static eval is higher than at our previous turn (two plies back, or four
+    // if we were in check then). Positions getting worse are pruned and reduced more.
+    let improving = !in_check
+        && [2, 4]
+            .iter()
+            .filter_map(|&b| ply.checked_sub(b).map(|p| ctx.heur.eval_at[p]))
+            .find(|&e| e != NO_EVAL)
+            .is_none_or(|e| static_eval > e);
 
     // Reverse futility pruning: near the leaves, a static eval far above beta holds.
-    if prunable && depth <= 6 && beta.abs() < MATE_THRESHOLD && static_eval - 80 * depth as i32 >= beta {
+    if prunable && depth <= 6 && beta.abs() < MATE_THRESHOLD && static_eval - 80 * (depth as i32 - improving as i32) >= beta {
         return static_eval;
     }
 
@@ -319,7 +332,7 @@ fn alpha_beta(
             && i > 0
             && quiet
             && alpha > -MATE_THRESHOLD
-            && static_eval + 80 + 80 * depth as i32 <= alpha
+            && static_eval + 80 * depth as i32 + if improving { 80 } else { 40 } <= alpha
             && !board.is_in_check()
         {
             board.unmake_move(m, &undo);
@@ -330,7 +343,7 @@ fn alpha_beta(
         let mut reduction = 0;
         if depth >= 3 && i >= 3 && quiet && !in_check && !board.is_in_check() {
             let r = 0.75 + (depth as f64).ln() * (i as f64).ln() / 2.25;
-            reduction = (r as usize).saturating_sub(pv_node as usize).min(depth - 2);
+            reduction = (r as usize + !improving as usize).saturating_sub(pv_node as usize).min(depth - 2);
         }
         let score = pvs_child(board, depth - 1, ply + 1, alpha, beta, (i > 0).then_some(reduction), ctx);
         board.unmake_move(m, &undo);
@@ -557,6 +570,7 @@ pub fn search(
         };
 
         for (i, &m) in candidate_moves.iter().enumerate() {
+            ctx.heur.eval_at[0] = if board.is_in_check() { NO_EVAL } else { evaluate(board) };
             ctx.heur.record(board, 0, m);
             let undo = board.make_move(m);
             let score = pvs_child(board, current_depth - 1, 1, alpha, beta, (i > 0).then_some(0), &mut ctx);

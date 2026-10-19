@@ -4,6 +4,9 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### Late move pruning with "improving" (bench 1387095 → 888666)
+- At null-window nodes not in check with depth ≤ 6, quiet non-killer moves after the first 3 + depth² (improving) or (3 + depth²)/2 (not improving) are skipped. Earlier move-count LMP without improving lost ~21 Elo.
+
 ### "Improving" heuristic (bench 2309154 → 1387095)
 - Static eval is now stored per ply; a node is improving when its eval beats the eval at our previous turn (2 plies back, or 4 if we were in check). Static eval is now computed at every node not in check.
 - RFP margin 80·(depth − improving); LMR reduces one ply more when not improving; futility margin 80·depth + 80 when improving, + 40 when not.

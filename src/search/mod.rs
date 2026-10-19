@@ -75,6 +75,8 @@ struct SearchContext<'a> {
 }
 
 const MAX_PLY: usize = 128;
+const CONT_MAX: i32 = 16384;
+const NO_PIECE: usize = 12;
 
 /// Quiet-move ordering data for one search: two killers per ply and butterfly history
 /// indexed by [side][from][to]. Boxed once per `go`, never allocated in the tree.
@@ -85,6 +87,10 @@ struct Heuristics {
     moves_at: [Move; MAX_PLY],
     /// Counter move: the quiet move that last refuted [previous piece (colour·6 + type)][previous to].
     counter: [[Move; 64]; 12],
+    /// Moving piece (colour·6 + type) of `moves_at[ply]`; NO_PIECE for a null move.
+    piece_at_ply: [usize; MAX_PLY],
+    /// Continuation history [prev piece][prev to][piece][to], flat, shared by the 1- and 2-ply lookups.
+    cont: Vec<i32>,
     /// `null_at[ply]`: the move made at `ply` was a null move (no two in a row).
     null_at: [bool; MAX_PLY],
 }
@@ -96,6 +102,8 @@ impl Heuristics {
             history: [[[0; 64]; 64]; 2],
             moves_at: [Move::NULL; MAX_PLY],
             counter: [[Move::NULL; 64]; 12],
+            piece_at_ply: [NO_PIECE; MAX_PLY],
+            cont: vec![0; 12 * 64 * 12 * 64],
             null_at: [false; MAX_PLY],
         })
     }
@@ -118,6 +126,47 @@ impl Heuristics {
         Some(&mut self.counter[piece.color.index() * 6 + piece.piece_type.index()][prev.to_sq() as usize])
     }
 
+    /// Records the move about to be made at `ply` (NULL for a null move).
+    fn record(&mut self, board: &Board, ply: usize, m: Move) {
+        self.moves_at[ply] = m;
+        self.piece_at_ply[ply] = board
+            .piece_at(m.from_sq())
+            .filter(|_| m != Move::NULL)
+            .map_or(NO_PIECE, |p| p.color.index() * 6 + p.piece_type.index());
+    }
+
+    /// Index into `cont` for move `m` following the move made `back` plies earlier, if any.
+    fn cont_index(&self, board: &Board, ply: usize, back: usize, m: Move) -> Option<usize> {
+        let prev_ply = ply.checked_sub(back)?;
+        let prev_piece = self.piece_at_ply[prev_ply];
+        let piece = board.piece_at(m.from_sq())?;
+        (prev_piece != NO_PIECE).then(|| {
+            let prev_to = self.moves_at[prev_ply].to_sq() as usize;
+            let cur = piece.color.index() * 6 + piece.piece_type.index();
+            ((prev_piece * 64 + prev_to) * 12 + cur) * 64 + m.to_sq() as usize
+        })
+    }
+
+    fn cont_score(&self, board: &Board, ply: usize, m: Move) -> i32 {
+        [1, 2].iter().filter_map(|&b| self.cont_index(board, ply, b, m)).map(|i| self.cont[i]).sum()
+    }
+
+    /// Rewards the quiet move that failed high and punishes the quiets tried before it,
+    /// for the 1-ply and 2-ply continuations.
+    fn update_cont(&mut self, board: &Board, ply: usize, best: Move, tried: &[Move], depth: usize) {
+        let bonus = (16 * depth * depth).min(1200) as i32;
+        for &m in tried {
+            let b = if m == best { bonus } else { -bonus };
+            for back in [1, 2] {
+                if let Some(i) = self.cont_index(board, ply, back, m) {
+                    let h = &mut self.cont[i];
+                    // Gravity: entries saturate at ±CONT_MAX instead of growing without bound.
+                    *h += b - *h * b.abs() / CONT_MAX;
+                }
+            }
+        }
+    }
+
     /// Ordering key: TT/best move, good captures (SEE ≥ 0, by MVV-LVA), killers, quiet moves
     /// by history, then losing captures last.
     fn order_key(&self, board: &Board, m: Move, tt_move: Move, counter: Move, ply: usize) -> i32 {
@@ -134,6 +183,7 @@ impl Heuristics {
             750_000
         } else {
             self.history[board.side_to_move.index()][m.from_sq() as usize][m.to_sq() as usize]
+                + self.cont_score(board, ply, m)
         }
     }
 }
@@ -212,7 +262,7 @@ fn alpha_beta(
         let r = 3 + depth / 4;
         board.make_null_move();
         ctx.heur.null_at[ply] = true;
-        ctx.heur.moves_at[ply] = Move::NULL;
+        ctx.heur.record(board, ply, Move::NULL);
         let score = -alpha_beta(board, depth.saturating_sub(1 + r), ply + 1, -beta, -beta + 1, ctx);
         ctx.heur.null_at[ply] = false;
         board.unmake_null_move();
@@ -249,6 +299,8 @@ fn alpha_beta(
 
     let mut best_move = Move::NULL;
     let pv_node = beta - alpha > 1;
+    let mut tried_quiets = [Move::NULL; 64];
+    let mut quiets_tried = 0;
     for (i, &m) in moves.as_slice().iter().enumerate() {
         let quiet = !m.is_capture() && m.promotion_piece().is_none() && !ctx.heur.killers[ply].contains(&m);
         // SEE pruning: at shallow null-window nodes skip moves that lose too much material.
@@ -258,7 +310,7 @@ fn alpha_beta(
                 continue;
             }
         }
-        ctx.heur.moves_at[ply] = m;
+        ctx.heur.record(board, ply, m);
         let undo = board.make_move(m);
         // Futility pruning: at frontier null-window nodes whose static eval is far below
         // alpha, quiet moves that do not give check cannot catch up.
@@ -287,12 +339,17 @@ fn alpha_beta(
             return 0;
         }
 
+        if !m.is_capture() && quiets_tried < tried_quiets.len() {
+            tried_quiets[quiets_tried] = m;
+            quiets_tried += 1;
+        }
         if score >= beta {
             if !m.is_capture() {
                 ctx.heur.update(board.side_to_move.index(), ply, m, depth);
                 if let Some(c) = ctx.heur.counter_slot(board, ply) {
                     *c = m;
                 }
+                ctx.heur.update_cont(board, ply, m, &tried_quiets[..quiets_tried], depth);
             }
             ctx.tt.store(key, m, beta, depth as i32, Bound::Lower, ply);
             return beta;
@@ -500,7 +557,7 @@ pub fn search(
         };
 
         for (i, &m) in candidate_moves.iter().enumerate() {
-            ctx.heur.moves_at[0] = m;
+            ctx.heur.record(board, 0, m);
             let undo = board.make_move(m);
             let score = pvs_child(board, current_depth - 1, 1, alpha, beta, (i > 0).then_some(0), &mut ctx);
             board.unmake_move(m, &undo);

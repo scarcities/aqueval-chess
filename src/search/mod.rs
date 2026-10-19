@@ -13,7 +13,7 @@ use crate::movegen::types::{Move, MoveList};
 use crate::perft::calculate_nps;
 use crate::search::evaluate::piece_value;
 use crate::search::evaluator::Evaluator;
-use crate::types::PieceType;
+use crate::types::{Color, PieceType};
 use crate::search::time::TimeLimits;
 use crate::search::see::see_ge;
 use crate::search::tt::{Bound, TranspositionTable};
@@ -85,6 +85,17 @@ const MAX_PLY: usize = 128;
 const CONT_MAX: i32 = 16384;
 const NO_PIECE: usize = 12;
 const NO_EVAL: i32 = i32::MIN;
+const CORR_SIZE: usize = 16384;
+const CORR_GRAIN: i32 = 256;
+const CORR_MAX: i32 = 128 * CORR_GRAIN;
+
+/// Index of the current pawn structure in the correction table (14-bit multiplicative hash).
+fn pawn_index(board: &Board) -> usize {
+    let pawns = board.pieces[PieceType::Pawn.index()];
+    let w = (pawns & board.colors[Color::White.index()]).0;
+    let b = (pawns & board.colors[Color::Black.index()]).0;
+    ((w.wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ b.wrapping_mul(0xC2B2_AE3D_27D4_EB4F)) >> 50) as usize
+}
 
 /// Quiet-move ordering data for one search: two killers per ply and butterfly history
 /// indexed by [side][from][to]. Boxed once per `go`, never allocated in the tree.
@@ -99,6 +110,10 @@ struct Heuristics {
     piece_at_ply: [usize; MAX_PLY],
     /// Static eval per ply on the current path (NO_EVAL when in check), for "improving".
     eval_at: [i32; MAX_PLY],
+    /// Pawn-structure correction history [side][pawn hash]: learned (search − static eval)
+    /// in 1/CORR_GRAIN centipawns, added to the static eval.
+    /// shortcut: reset every `go` with the other heuristics; keep it across moves like the TT once it has passed SPRT.
+    corr: Vec<i32>,
     /// Continuation history [prev piece][prev to][piece][to], flat, shared by the 1- and 2-ply lookups.
     cont: Vec<i32>,
     /// `null_at[ply]`: the move made at `ply` was a null move (no two in a row).
@@ -114,6 +129,7 @@ impl Heuristics {
             counter: [[Move::NULL; 64]; 12],
             piece_at_ply: [NO_PIECE; MAX_PLY],
             eval_at: [NO_EVAL; MAX_PLY],
+            corr: vec![0; 2 * CORR_SIZE],
             cont: vec![0; 12 * 64 * 12 * 64],
             null_at: [false; MAX_PLY],
         })
@@ -176,6 +192,26 @@ impl Heuristics {
                 }
             }
         }
+    }
+
+    fn corr_slot(&mut self, board: &Board) -> &mut i32 {
+        &mut self.corr[board.side_to_move.index() * CORR_SIZE + pawn_index(board)]
+    }
+
+    fn correction(&mut self, board: &Board) -> i32 {
+        *self.corr_slot(board) / CORR_GRAIN
+    }
+
+    /// Moves the correction for this pawn structure toward (search score − raw eval),
+    /// weighted by depth.
+    fn update_corr(&mut self, board: &Board, static_eval: i32, score: i32, depth: usize) {
+        if score.abs() >= MATE_THRESHOLD {
+            return;
+        }
+        let raw = static_eval - *self.corr_slot(board) / CORR_GRAIN;
+        let w = (depth as i32 + 1).min(16);
+        let c = self.corr_slot(board);
+        *c = ((*c * (256 - w) + (score - raw) * CORR_GRAIN * w) / 256).clamp(-CORR_MAX, CORR_MAX);
     }
 
     /// Ordering key: TT/best move, good captures (SEE ≥ 0, by MVV-LVA), killers, quiet moves
@@ -257,7 +293,7 @@ fn alpha_beta(
     }
 
     let prunable = beta - alpha == 1 && ply > 0 && !in_check;
-    let static_eval = if in_check { NO_EVAL } else { ctx.eval.evaluate(board) };
+    let static_eval = if in_check { NO_EVAL } else { ctx.eval.evaluate(board) + ctx.heur.correction(board) };
     ctx.heur.eval_at[ply] = static_eval;
     // "Improving": static eval is higher than at our previous turn (two plies back, or four
     // if we were in check then). Positions getting worse are pruned and reduced more.
@@ -378,6 +414,9 @@ fn alpha_beta(
                 }
                 ctx.heur.update_cont(board, ply, m, &tried_quiets[..quiets_tried], depth);
             }
+            if !in_check && !m.is_capture() && beta > static_eval {
+                ctx.heur.update_corr(board, static_eval, beta, depth);
+            }
             ctx.tt.store(key, m, beta, depth as i32, Bound::Lower, ply);
             return beta;
         }
@@ -388,6 +427,10 @@ fn alpha_beta(
     }
 
     let bound = if best_move == Move::NULL { Bound::Upper } else { Bound::Exact };
+    let quiet_best = best_move == Move::NULL || !best_move.is_capture();
+    if !in_check && quiet_best && (bound == Bound::Exact || alpha < static_eval) {
+        ctx.heur.update_corr(board, static_eval, alpha, depth);
+    }
     ctx.tt.store(key, best_move, alpha, depth as i32, bound, ply);
     alpha
 }

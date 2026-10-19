@@ -4,6 +4,9 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### Static eval correction history, pawn structure (bench 888437 → 1029973)
+- Table [side][14-bit pawn-structure hash] of learned (search score − raw eval), added to the static eval used for pruning and "improving". Updated when a node's result is reliable relative to the eval (exact, or a fail-high above / fail-low below it, with a quiet or no best move), weighted by depth, clamped to ±128 cp. Reset every `go`.
+
 ### Draw hygiene (bench 888666 → 888437)
 - Repetition inside the search: a single earlier occurrence on the search path (from the root on) is a draw; positions from the game before the root still need a threefold. Previously the search only scored threefold repetitions.
 - No TT cutoffs at halfmove clock ≥ 90, where a stored score can miss an approaching 50-move draw.

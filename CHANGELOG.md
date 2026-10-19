@@ -4,6 +4,9 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### Time management: best-move stability and score trend (bench unchanged: depth-limited)
+- The "don't start another iteration" point (half the soft limit) is scaled by best-move stability (×2.0 right after a change down to ×0.75 after 4 stable iterations) and by score drops (×1.2 above 20 cp, ×1.5 above 50 cp). The hard limit is unchanged and still caps every move.
+
 ### Static eval correction history, pawn structure (bench 484663 → 466921)
 - Table [side][14-bit pawn-structure hash] of learned (search score − raw eval), added to the static eval used for pruning and "improving". Updated when a node's result is reliable relative to the eval (exact, or a fail-high above / fail-low below it, with a quiet or no best move), weighted by depth, clamped to ±128 cp.
 

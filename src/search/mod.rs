@@ -602,6 +602,7 @@ pub fn search(
 
     let mut best_move = candidate_moves[0];
     let mut best_score = -MATE_SCORE;
+    let mut stable_iters = 0usize;
     let mut completed_depth = 0;
 
     let max_depth = limits.depth.unwrap_or(64);
@@ -648,6 +649,9 @@ pub fn search(
             break;
         }
 
+        // Best-move stability and score trend for time management.
+        stable_iters = if depth_best_move == best_move { stable_iters + 1 } else { 0 };
+        let score_drop = if completed_depth > 0 { best_score - depth_best_score } else { 0 };
         best_move = depth_best_move;
         best_score = depth_best_score;
         completed_depth = current_depth;
@@ -677,9 +681,13 @@ pub fn search(
         }
 
         // Check soft time limit: the next iteration costs several times the last one,
-        // so do not start it once half the soft budget is gone.
+        // so do not start it once half the (scaled) soft budget is gone. Spend more when the
+        // best move keeps changing or the score just dropped, less when both are stable.
+        // The hard limit still caps everything.
         if let Some(soft) = limits.time_limits.soft_limit {
-            if elapsed >= soft / 2 {
+            let stability = [2.0, 1.4, 1.1, 0.9, 0.75][stable_iters.min(4)];
+            let trend = if score_drop > 50 { 1.5 } else if score_drop > 20 { 1.2 } else { 1.0 };
+            if elapsed.as_secs_f64() >= soft.as_secs_f64() * stability * trend / 2.0 {
                 break;
             }
         }

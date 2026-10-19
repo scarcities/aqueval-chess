@@ -81,6 +81,10 @@ const MAX_PLY: usize = 128;
 struct Heuristics {
     killers: [[Move; 2]; MAX_PLY],
     history: [[[i32; 64]; 64]; 2],
+    /// Move made at each ply on the current path (NULL for a null move), for counter moves.
+    moves_at: [Move; MAX_PLY],
+    /// Counter move: the quiet move that last refuted [previous piece (colour·6 + type)][previous to].
+    counter: [[Move; 64]; 12],
     /// `null_at[ply]`: the move made at `ply` was a null move (no two in a row).
     null_at: [bool; MAX_PLY],
 }
@@ -90,6 +94,8 @@ impl Heuristics {
         Box::new(Self {
             killers: [[Move::NULL; 2]; MAX_PLY],
             history: [[[0; 64]; 64]; 2],
+            moves_at: [Move::NULL; MAX_PLY],
+            counter: [[Move::NULL; 64]; 12],
             null_at: [false; MAX_PLY],
         })
     }
@@ -105,9 +111,16 @@ impl Heuristics {
         *h = (*h + (depth * depth) as i32).min(700_000);
     }
 
+    /// Slot of the counter move to the previous move, if there was a real previous move.
+    fn counter_slot(&mut self, board: &Board, ply: usize) -> Option<&mut Move> {
+        let prev = *self.moves_at.get(ply.checked_sub(1)?)?;
+        let piece = board.piece_at(prev.to_sq()).filter(|_| prev != Move::NULL)?;
+        Some(&mut self.counter[piece.color.index() * 6 + piece.piece_type.index()][prev.to_sq() as usize])
+    }
+
     /// Ordering key: TT/best move, good captures (SEE ≥ 0, by MVV-LVA), killers, quiet moves
     /// by history, then losing captures last.
-    fn order_key(&self, board: &Board, m: Move, tt_move: Move, ply: usize) -> i32 {
+    fn order_key(&self, board: &Board, m: Move, tt_move: Move, counter: Move, ply: usize) -> i32 {
         if m == tt_move {
             i32::MAX
         } else if m.is_capture() {
@@ -117,6 +130,8 @@ impl Heuristics {
             900_000
         } else if m == self.killers[ply][1] {
             800_000
+        } else if m == counter {
+            750_000
         } else {
             self.history[board.side_to_move.index()][m.from_sq() as usize][m.to_sq() as usize]
         }
@@ -197,6 +212,7 @@ fn alpha_beta(
         let r = 3 + depth / 4;
         board.make_null_move();
         ctx.heur.null_at[ply] = true;
+        ctx.heur.moves_at[ply] = Move::NULL;
         let score = -alpha_beta(board, depth.saturating_sub(1 + r), ply + 1, -beta, -beta + 1, ctx);
         ctx.heur.null_at[ply] = false;
         board.unmake_null_move();
@@ -219,11 +235,12 @@ fn alpha_beta(
         }
     }
 
+    let counter = ctx.heur.counter_slot(board, ply).map_or(Move::NULL, |c| *c);
     // Keys computed once per move (SEE is not free), sorted on the stack: no allocation.
     let n = moves.count;
     let mut keyed = [(0i32, Move::NULL); 256];
     for (slot, &m) in keyed.iter_mut().zip(moves.as_slice()) {
-        *slot = (ctx.heur.order_key(board, m, tt_move, ply), m);
+        *slot = (ctx.heur.order_key(board, m, tt_move, counter, ply), m);
     }
     keyed[..n].sort_unstable_by_key(|&(k, _)| std::cmp::Reverse(k));
     for (dst, &(_, m)) in moves.moves[..n].iter_mut().zip(&keyed[..n]) {
@@ -241,6 +258,7 @@ fn alpha_beta(
                 continue;
             }
         }
+        ctx.heur.moves_at[ply] = m;
         let undo = board.make_move(m);
         // Futility pruning: at frontier null-window nodes whose static eval is far below
         // alpha, quiet moves that do not give check cannot catch up.
@@ -272,6 +290,9 @@ fn alpha_beta(
         if score >= beta {
             if !m.is_capture() {
                 ctx.heur.update(board.side_to_move.index(), ply, m, depth);
+                if let Some(c) = ctx.heur.counter_slot(board, ply) {
+                    *c = m;
+                }
             }
             ctx.tt.store(key, m, beta, depth as i32, Bound::Lower, ply);
             return beta;
@@ -468,7 +489,7 @@ pub fn search(
         let mut depth_best_score = -32000;
 
         // Order root moves: place current best_move first, then captures
-        candidate_moves.sort_by_key(|&m| std::cmp::Reverse(heur.order_key(board, m, best_move, 0)));
+        candidate_moves.sort_by_key(|&m| std::cmp::Reverse(heur.order_key(board, m, best_move, Move::NULL, 0)));
 
         let mut ctx = SearchContext {
             stop_flag,
@@ -479,6 +500,7 @@ pub fn search(
         };
 
         for (i, &m) in candidate_moves.iter().enumerate() {
+            ctx.heur.moves_at[0] = m;
             let undo = board.make_move(m);
             let score = pvs_child(board, current_depth - 1, 1, alpha, beta, (i > 0).then_some(0), &mut ctx);
             board.unmake_move(m, &undo);

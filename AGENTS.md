@@ -21,17 +21,19 @@ Invariants: no heap allocation in movegen, make/unmake or search recursion; `sha
 
 ## Current status
 
-- **Elo estimate (vs limited Stockfish):** ~2150 (2026-10-17, after Phase 2 steps 1–4: PST eval, PVS, TT, TT/MVV-LVA ordering). Approximation against Stockfish 17 with `UCI_LimitStrength`, not a CCRL rating; SF's Elo scale is calibrated at longer time controls, so the two levels disagree.
+- **Elo estimate (vs limited Stockfish):** ~2430 (2026-10-19, after Phase 2 features: PST eval, PVS, TT, TT/MVV-LVA ordering, killers + history, null move pruning, LMR, reverse futility pruning, check extensions). Approximation against Stockfish 17 with `UCI_LimitStrength`, not a CCRL rating; SF's Elo scale is calibrated at longer time controls, so levels disagree somewhat.
 
-  | Opponent | TC | Games | Score | Elo diff | Implied Quant Elo |
-  |---|---|---|---|---|---|
-  | SF 17, UCI_Elo 2000 | 10+0.1 | 200 | 110.5 (55.3 %) | +37 ± 46 | ~2036 |
-  | SF 17, UCI_Elo 2300 | 10+0.1 | 200 | 86.5 (43.3 %) | −47 ± 44 | ~2252 |
+  | Date | Opponent | TC | Games | Score | Elo diff | Implied Quant Elo |
+  |---|---|---|---|---|---|---|
+  | 2026-10-19 | SF 17, UCI_Elo 2300 | 10+0.1 | 200 | 130.5 (65.3 %) | +109 ± 47 | ~2409 |
+  | 2026-10-19 | SF 17, UCI_Elo 2600 | 10+0.1 | 200 | 59.0 (29.5 %) | −151 ± 50 | ~2448 |
+  | 2026-10-17 | SF 17, UCI_Elo 2000 | 10+0.1 | 200 | 110.5 (55.3 %) | +37 ± 46 | ~2036 |
+  | 2026-10-17 | SF 17, UCI_Elo 2300 | 10+0.1 | 200 | 86.5 (43.3 %) | −47 ± 44 | ~2252 |
 
-  Levels picked from a 20-game probe at 1400/1700/2000/2300. Rerun: `scripts/elo_gauntlet.sh` with `LEVELS="2000 2300"`.
+  2026-10-17 rows: after steps 1–4 only (~2150). Levels picked from 20-game probes. Rerun: `scripts/elo_gauntlet.sh` with `LEVELS="2300 2600"`.
 - **Bench signature:** 125351
 - **Perft 6 startpos:** see CHANGELOG.md for nps (bulk and non-bulk).
-- **Roadmap:** Phase 1 (Foundation) complete. Next: Phase 2 (Search).
+- **Roadmap:** Phase 1 (Foundation) complete. Phase 2 (Search) in progress: core search, ordering and basic pruning merged; aspiration windows, late move pruning and futility pruning not yet (see SPRT log).
 
 ## Ideas tried
 

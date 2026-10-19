@@ -4,6 +4,9 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### Static eval correction history, pawn structure (bench 484663 → 466921)
+- Table [side][14-bit pawn-structure hash] of learned (search score − raw eval), added to the static eval used for pruning and "improving". Updated when a node's result is reliable relative to the eval (exact, or a fail-high above / fail-low below it, with a quiet or no best move), weighted by depth, clamped to ±128 cp.
+
 ### Internal iterative reductions (bench 888666 → 484663)
 - Nodes with depth ≥ 4 and no TT move are searched one ply shallower.
 

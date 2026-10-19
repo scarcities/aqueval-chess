@@ -4,6 +4,11 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### SEE: capture ordering and SEE pruning (bench 4533123 → 2458792)
+- New `search::see::see_ge` (swap algorithm with x-rays; castling, en passant and promotions count as 0).
+- Ordering: captures with SEE ≥ 0 first (MVV-LVA among them), losing captures after all quiet moves. Keys are computed once per move.
+- Quiescence skips captures with SEE < 0. Main search (null-window, not in check, depth ≤ 6, after the first move) skips captures with SEE < −100·depth and quiets with SEE < −50·depth.
+
 ### Futility pruning (bench 6398189 → 4533123)
 - At null-window nodes not in check with depth ≤ 4: once one move is searched, quiet non-killer moves that do not give check are skipped when static eval + 80 + 80·depth ≤ alpha. (The better of two earlier tries, +12.8 ± 8.6 but undecided at 4000 games; retested with a 20,000-game cap.)
 

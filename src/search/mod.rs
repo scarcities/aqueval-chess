@@ -1,5 +1,6 @@
 pub mod evaluate;
 pub mod time;
+pub mod see;
 pub mod tt;
 
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -12,6 +13,7 @@ use crate::perft::calculate_nps;
 use crate::search::evaluate::{evaluate, piece_value};
 use crate::types::PieceType;
 use crate::search::time::TimeLimits;
+use crate::search::see::see_ge;
 use crate::search::tt::{Bound, TranspositionTable};
 
 pub const MATE_SCORE: i32 = 30000;
@@ -103,12 +105,14 @@ impl Heuristics {
         *h = (*h + (depth * depth) as i32).min(700_000);
     }
 
-    /// Ordering key: TT/best move, captures (MVV-LVA), killers, then quiet moves by history.
+    /// Ordering key: TT/best move, good captures (SEE ≥ 0, by MVV-LVA), killers, quiet moves
+    /// by history, then losing captures last.
     fn order_key(&self, board: &Board, m: Move, tt_move: Move, ply: usize) -> i32 {
         if m == tt_move {
             i32::MAX
         } else if m.is_capture() {
-            1_000_000 + mvv_lva(board, m)
+            let base = if see_ge(board, m, 0) { 1_000_000 } else { -1_000_000 };
+            base + mvv_lva(board, m)
         } else if m == self.killers[ply][0] {
             900_000
         } else if m == self.killers[ply][1] {
@@ -215,14 +219,28 @@ fn alpha_beta(
         }
     }
 
-    // Unstable sort: no allocation.
-    let heur = &*ctx.heur;
-    moves.moves[..moves.count].sort_unstable_by_key(|&m| std::cmp::Reverse(heur.order_key(board, m, tt_move, ply)));
+    // Keys computed once per move (SEE is not free), sorted on the stack: no allocation.
+    let n = moves.count;
+    let mut keyed = [(0i32, Move::NULL); 256];
+    for (slot, &m) in keyed.iter_mut().zip(moves.as_slice()) {
+        *slot = (ctx.heur.order_key(board, m, tt_move, ply), m);
+    }
+    keyed[..n].sort_unstable_by_key(|&(k, _)| std::cmp::Reverse(k));
+    for (dst, &(_, m)) in moves.moves[..n].iter_mut().zip(&keyed[..n]) {
+        *dst = m;
+    }
 
     let mut best_move = Move::NULL;
     let pv_node = beta - alpha > 1;
     for (i, &m) in moves.as_slice().iter().enumerate() {
         let quiet = !m.is_capture() && m.promotion_piece().is_none() && !ctx.heur.killers[ply].contains(&m);
+        // SEE pruning: at shallow null-window nodes skip moves that lose too much material.
+        if prunable && i > 0 && depth <= 6 && alpha > -MATE_THRESHOLD {
+            let margin = if m.is_capture() { -100 } else { -50 } * depth as i32;
+            if !see_ge(board, m, margin) {
+                continue;
+            }
+        }
         let undo = board.make_move(m);
         // Futility pruning: at frontier null-window nodes whose static eval is far below
         // alpha, quiet moves that do not give check cannot catch up.
@@ -334,6 +352,10 @@ fn quiescence(board: &mut Board, mut alpha: i32, beta: i32, ctx: &mut SearchCont
     captures.sort_unstable_by_key(|&m| std::cmp::Reverse(if m.is_capture() { mvv_lva(board, m) } else { i32::MIN }));
 
     for &m in captures.iter().take_while(|m| m.is_capture()) {
+        // Captures that lose material cannot raise a stand-pat score.
+        if !see_ge(board, m, 0) {
+            continue;
+        }
         let undo = board.make_move(m);
         let score = -quiescence(board, -beta, -alpha, ctx);
         board.unmake_move(m, &undo);

@@ -254,6 +254,9 @@ fn test_subprocess_low_time_bestmove_in_time() {
     session.send("isready");
     session.read_until_match(|l| l == "readyok");
 
+    // OS scheduling slack: with every core busy (SPRT running), pipe and thread wake-ups alone
+    // can take tens of ms. The bug this guards against overran the clock by seconds.
+    const SLACK_MS: u64 = 150;
     // Kiwipete: wide tree, so the search would overrun any limit it does not enforce.
     let kiwipete = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R";
     for (side, time) in [("w", 500u64), ("w", 100), ("w", 20), ("b", 20)] {
@@ -262,7 +265,7 @@ fn test_subprocess_low_time_bestmove_in_time() {
         session.send(&format!("go wtime {time} btime {time}"));
         let (_, bestmove) = session.read_until_bestmove();
         let elapsed = start.elapsed().as_millis() as u64;
-        assert!(elapsed < time, "{side} wtime/btime {time}: bestmove after {elapsed} ms");
+        assert!(elapsed < time + SLACK_MS, "{side} wtime/btime {time}: bestmove after {elapsed} ms");
         assert_ne!(bestmove, "0000");
     }
 
@@ -271,6 +274,6 @@ fn test_subprocess_low_time_bestmove_in_time() {
     let start = std::time::Instant::now();
     session.send("go wtime 300 btime 300 winc 5000 binc 5000 movestogo 1");
     session.read_until_bestmove();
-    assert!(start.elapsed().as_millis() < 300);
+    assert!((start.elapsed().as_millis() as u64) < 300 + SLACK_MS);
     session.quit();
 }

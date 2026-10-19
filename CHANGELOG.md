@@ -4,6 +4,9 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### Bench depth 5 → 11 (bench 125351 → 6398189, no search change)
+- Depth 5 was only ~125k nodes and never reached depth-6+ code paths (e.g. aspiration windows from depth 6). Depth 11 covers them: ~6.4M nodes, ~2 s on the reference machine.
+
 ### Check extensions (bench 116403 → 125351)
 - A node in check searches one ply deeper (so quiescence is never entered in check). Ply is capped at 127 because extensions can lengthen lines.
 

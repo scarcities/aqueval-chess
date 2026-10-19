@@ -13,7 +13,7 @@ Target machine: the reference machine (Zen+, 6c/12t, AVX2, no AVX-512, slow PEXT
 | `src/perft/` | Perft with and without bulk counting, divide, the six standard positions |
 | `src/search/` | Phase 1 placeholder: iterative-deepening alpha-beta, material eval, soft/hard time limits |
 | `src/uci/` | UCI loop; search runs on its own thread so `stop`/`isready` stay responsive; `go perft N` prints divide |
-| `src/bench/` | Searches the six standard positions to depth 5; total nodes = bench signature |
+| `src/bench/` | Searches the six standard positions to depth 11; total nodes = bench signature |
 | `tests/` | Perft suites, movegen edge cases, 10k-position shakmaty cross-check, UCI subprocess tests, bench regression |
 | `harness/` | External perft harness that tests the shipped binary over UCI (see `harness/README.md`) |
 
@@ -31,7 +31,7 @@ Invariants: no heap allocation in movegen, make/unmake or search recursion; `sha
   | 2026-10-17 | SF 17, UCI_Elo 2300 | 10+0.1 | 200 | 86.5 (43.3 %) | −47 ± 44 | ~2252 |
 
   2026-10-17 rows: after steps 1–4 only (~2150). Levels picked from 20-game probes. Rerun: `scripts/elo_gauntlet.sh` with `LEVELS="2300 2600"`.
-- **Bench signature:** 125351
+- **Bench signature:** 6398189
 - **Perft 6 startpos:** see CHANGELOG.md for nps (bulk and non-bulk).
 - **Roadmap:** Phase 1 (Foundation) complete. Phase 2 (Search) in progress: core search, ordering and basic pruning merged; aspiration windows, late move pruning and futility pruning not yet (see SPRT log).
 

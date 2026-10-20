@@ -183,7 +183,7 @@ impl Heuristics {
             750_000
         } else {
             self.history[board.side_to_move.index()][m.from_sq() as usize][m.to_sq() as usize]
-                + self.cont_score(board, ply, m)
+                + 2 * self.cont_score(board, ply, m)
         }
     }
 }

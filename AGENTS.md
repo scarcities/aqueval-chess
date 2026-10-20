@@ -82,6 +82,7 @@ Run with `scripts/run_sprt.sh`, one test at a time, fastchess concurrency 10 (2 
 | Capture history, ordering weight /32 (vs SEE) | [0, 5] | H0 accepted | −5.7 ± 6.2 | 7346 |
 | Capture history, ordering weight /8, the one variation (vs SEE) | [0, 5] | H0 accepted | −5.1 ± 6.2 | 8192 |
 | Counter move heuristic (vs SEE; capture history not merged) | [0, 5] | H1 accepted | +8.6 ± 5.8 | 8720 |
+| Continuation history 1+2 ply, ordering weight 1 (vs counter move) | [0, 5] | inconclusive at 15,000-game cap (LLR 0.06) | +2.1 ± 4.5 | 15000 |
 
 ## Future roadmap
 

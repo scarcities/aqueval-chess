@@ -81,6 +81,7 @@ Run with `scripts/run_sprt.sh`, one test at a time, fastchess concurrency 10 (2 
 | SEE: good/bad capture ordering, SEE pruning in qsearch and main search (vs futility) | [0, 10] | H1 accepted | +122 ± 35 | 290 |
 | Capture history, ordering weight /32 (vs SEE) | [0, 5] | H0 accepted | −5.7 ± 6.2 | 7346 |
 | Capture history, ordering weight /8, the one variation (vs SEE) | [0, 5] | H0 accepted | −5.1 ± 6.2 | 8192 |
+| Counter move heuristic (vs SEE; capture history not merged) | [0, 5] | H1 accepted | +8.6 ± 5.8 | 8720 |
 
 ## Future roadmap
 

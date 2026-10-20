@@ -4,6 +4,9 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### Counter move heuristic (bench 2458792 → 2430886)
+- A quiet move that fails high is stored as the counter to the previous move ([previous piece][previous to-square]); it is ordered after the two killers and before history-ordered quiets.
+
 ### SEE: capture ordering and SEE pruning (bench 4533123 → 2458792)
 - New `search::see::see_ge` (swap algorithm with x-rays; castling, en passant and promotions count as 0).
 - Ordering: captures with SEE ≥ 0 first (MVV-LVA among them), losing captures after all quiet moves. Keys are computed once per move.

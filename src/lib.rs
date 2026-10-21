@@ -5,3 +5,4 @@ pub mod perft;
 pub mod search;
 pub mod uci;
 pub mod bench;
+pub mod nnue;

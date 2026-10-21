@@ -4,6 +4,10 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### Draw hygiene (bench 888666 → 888437)
+- Repetition inside the search: a single earlier occurrence on the search path (from the root on) is a draw; positions from the game before the root still need a threefold. Previously the search only scored threefold repetitions.
+- No TT cutoffs at halfmove clock ≥ 90, where a stored score can miss an approaching 50-move draw.
+
 ### NNUE infrastructure (bench unchanged, 888666)
 - `src/nnue/` ((768 → 256)x2 → 1 SCReLU, quantised, lazy incremental accumulators, AVX2 at run time), `search::evaluator::Evaluator`, `quant datagen`, `scripts/nnue/train.py`, netviz reads the net format. The search uses NNUE only in `--features nnue` builds with a net; the default build is unchanged. Details in docs/NNUE.md.
 

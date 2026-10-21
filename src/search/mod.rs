@@ -77,6 +77,8 @@ struct SearchContext<'a> {
     tt: &'a mut TranspositionTable,
     heur: &'a mut Heuristics,
     eval: &'a mut Evaluator,
+    /// `board.history.len()` at the root: history entries from here on belong to the search path.
+    root_history: usize,
 }
 
 const MAX_PLY: usize = 128;
@@ -229,8 +231,8 @@ fn alpha_beta(
         return ctx.eval.evaluate(board);
     }
 
-    // Threefold repetition or 50-move rule
-    if board.halfmove_clock >= 100 || board.is_repetition() {
+    // 50-move rule, or a repetition: once inside the search path, threefold before the root.
+    if board.halfmove_clock >= 100 || is_search_repetition(board, ctx.root_history) {
         return 0;
     }
 
@@ -239,8 +241,10 @@ fn alpha_beta(
     if let Some(e) = ctx.tt.probe(key, ply) {
         tt_move = e.mv;
         let score = e.score as i32;
-        // Cut only at null-window nodes so the PV keeps coming from real search.
+        // Cut only at null-window nodes so the PV keeps coming from real search, and not near
+        // the 50-move rule, where the stored score may ignore a draw that is now close.
         if beta - alpha == 1
+            && board.halfmove_clock < 90
             && e.depth as usize >= depth
             && match e.bound {
                 Bound::Exact => true,
@@ -422,6 +426,27 @@ fn has_non_pawn_material(board: &Board) -> bool {
     (ours & !pawns_kings).is_not_empty()
 }
 
+/// Draw by repetition for the search: any earlier occurrence of this position on the search
+/// path (history index >= `root_history`) counts, game positions before the root need two.
+fn is_search_repetition(board: &Board, root_history: usize) -> bool {
+    let h = &board.history;
+    let key = board.zobrist_hash();
+    let limit = h.len().saturating_sub(board.halfmove_clock as usize);
+    let mut before_root = 0;
+    for i in (limit..h.len()).rev().skip(1).step_by(2) {
+        if h[i].zobrist_hash == key {
+            if i >= root_history {
+                return true;
+            }
+            before_root += 1;
+            if before_root >= 2 {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 /// MVV-LVA key: most valuable victim first, then least valuable attacker.
 fn mvv_lva(board: &Board, m: Move) -> i32 {
     let victim = if m.is_en_passant() {
@@ -513,6 +538,7 @@ pub fn search(
     };
     let mut heur = Heuristics::new();
     let mut evaluator = Evaluator::new(board);
+    let root_history = board.history.len();
 
     let mut root_moves = MoveList::new();
     board.generate_legal_moves(&mut root_moves);
@@ -579,6 +605,7 @@ pub fn search(
             tt: &mut *tt,
             heur: &mut heur,
             eval: &mut evaluator,
+            root_history,
         };
 
         for (i, &m) in candidate_moves.iter().enumerate() {
@@ -755,5 +782,30 @@ mod tests {
         let res = search_sync(&mut board, &limits, &stop_flag, None);
         // Best move should capture e5 (e2e5)
         assert_eq!(res.best_move.to_uci(), "e2e5");
+    }
+
+    #[test]
+    fn test_search_repetition_rules() {
+        let mut b = Board::startpos();
+        let mv = |b: &Board, uci: &str| {
+            let mut l = MoveList::new();
+            b.generate_legal_moves(&mut l);
+            *l.as_slice().iter().find(|m| m.to_uci() == uci).unwrap()
+        };
+        let shuffle = ["g1f3", "g8f6", "f3g1", "f6g8"];
+        for u in shuffle {
+            let m = mv(&b, u);
+            b.make_move(m);
+        }
+        // Startpos has occurred twice in the game: one repeat before the root is not enough.
+        assert!(!is_search_repetition(&b, b.history.len()));
+        // The same repeat inside the search path counts.
+        assert!(is_search_repetition(&b, 0));
+        for u in shuffle {
+            let m = mv(&b, u);
+            b.make_move(m);
+        }
+        // Third occurrence before the root: draw.
+        assert!(is_search_repetition(&b, b.history.len()));
     }
 }

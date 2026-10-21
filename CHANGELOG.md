@@ -4,6 +4,10 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### Continuation history, variant 2 (bench 2430886 → 2309154)
+- Table [previous piece][previous to][piece][to] (flat, 2.4 MB per search, allocated once per `go`), looked up with the moves 1 and 2 plies back. A quiet cutoff gives +min(16·depth², 1200) to the cutoff move and the same malus to the quiets tried before it, with gravity at ±16384.
+- Quiet ordering key: butterfly history + 2 × (both continuation scores) (variant 2; weight 1 was undecided).
+
 ### Counter move heuristic (bench 2458792 → 2430886)
 - A quiet move that fails high is stored as the counter to the previous move ([previous piece][previous to-square]); it is ordered after the two killers and before history-ordered quiets.
 

@@ -86,8 +86,10 @@ impl Network {
         // SAFETY: Network is integers and bools only; all-zero is a valid value (false).
         let mut net: Box<Network> = unsafe { Box::new_zeroed().assume_init() };
         let mut words = bytes[..NET_BYTES]
-            .chunks_exact(2)
-            .map(|b| i16::from_le_bytes([b[0], b[1]]));
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|&b| i16::from_le_bytes(b));
         let mut fill = |acc: &mut Accumulator| {
             for v in acc.vals.iter_mut() {
                 *v = words.next().expect("size checked above");

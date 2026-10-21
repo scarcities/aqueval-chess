@@ -25,7 +25,8 @@ impl UciOptions {
 
     /// Configures an option by name and optional value.
     /// Name comparison is strictly case-insensitive.
-    pub fn set_option(&mut self, name: &str, value: Option<&str>) {
+    /// Returns a message for the GUI (`info string`) when the option reports something.
+    pub fn set_option(&mut self, name: &str, value: Option<&str>) -> Option<String> {
         let name_lower = name.trim().to_ascii_lowercase();
         match name_lower.as_str() {
             "hash" => {
@@ -47,10 +48,23 @@ impl UciOptions {
                     self.move_overhead_ms = val.min(5000);
                 }
             }
+            #[cfg(feature = "nnue")]
+            "evalfile" => {
+                let path = value.unwrap_or("").trim();
+                return Some(match crate::nnue::load_eval_file(path) {
+                    Ok(()) => format!("NNUE net loaded: {}", if path.is_empty() { "<embedded>" } else { path }),
+                    Err(e) => format!("NNUE net not loaded: {e}"),
+                });
+            }
+            #[cfg(feature = "nnue")]
+            "usennue" => {
+                crate::nnue::set_enabled(value.is_some_and(|v| v.trim().eq_ignore_ascii_case("true")));
+            }
             _ => {
                 // Ignore unknown options gracefully per UCI specification
             }
         }
+        None
     }
 
     /// Prints available options during the `uci` handshake.
@@ -58,6 +72,11 @@ impl UciOptions {
         writeln!(writer, "option name Hash type spin default 16 min 1 max 1024")?;
         writeln!(writer, "option name Threads type spin default 1 min 1 max 1")?;
         writeln!(writer, "option name Move Overhead type spin default 30 min 0 max 5000")?;
+        #[cfg(feature = "nnue")]
+        {
+            writeln!(writer, "option name EvalFile type string default <embedded>")?;
+            writeln!(writer, "option name UseNNUE type check default true")?;
+        }
         Ok(())
     }
 }

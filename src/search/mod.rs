@@ -1,4 +1,5 @@
 pub mod evaluate;
+pub mod evaluator;
 pub mod time;
 pub mod see;
 pub mod tt;
@@ -10,7 +11,8 @@ use std::time::Instant;
 use crate::board::Board;
 use crate::movegen::types::{Move, MoveList};
 use crate::perft::calculate_nps;
-use crate::search::evaluate::{evaluate, piece_value};
+use crate::search::evaluate::piece_value;
+use crate::search::evaluator::Evaluator;
 use crate::types::PieceType;
 use crate::search::time::TimeLimits;
 use crate::search::see::see_ge;
@@ -72,6 +74,7 @@ struct SearchContext<'a> {
     stats: &'a mut SearchStats,
     tt: &'a mut TranspositionTable,
     heur: &'a mut Heuristics,
+    eval: &'a mut Evaluator,
 }
 
 const MAX_PLY: usize = 128;
@@ -221,7 +224,7 @@ fn alpha_beta(
     }
     // Extensions can lengthen lines; the ply tables end at MAX_PLY.
     if ply >= MAX_PLY - 1 {
-        return evaluate(board);
+        return ctx.eval.evaluate(board);
     }
 
     // Threefold repetition or 50-move rule
@@ -248,7 +251,7 @@ fn alpha_beta(
     }
 
     let prunable = beta - alpha == 1 && ply > 0 && !in_check;
-    let static_eval = if in_check { NO_EVAL } else { evaluate(board) };
+    let static_eval = if in_check { NO_EVAL } else { ctx.eval.evaluate(board) };
     ctx.heur.eval_at[ply] = static_eval;
     // "Improving": static eval is higher than at our previous turn (two plies back, or four
     // if we were in check then). Positions getting worse are pruned and reduced more.
@@ -329,7 +332,7 @@ fn alpha_beta(
             }
         }
         ctx.heur.record(board, ply, m);
-        let undo = board.make_move(m);
+        let undo = ctx.eval.make_move(board, m);
         // Futility pruning: at frontier null-window nodes whose static eval is far below
         // alpha, quiet moves that do not give check cannot catch up.
         if prunable
@@ -340,7 +343,7 @@ fn alpha_beta(
             && static_eval + 80 * depth as i32 + if improving { 80 } else { 40 } <= alpha
             && !board.is_in_check()
         {
-            board.unmake_move(m, &undo);
+            ctx.eval.unmake_move(board, m, &undo);
             continue;
         }
         // Late move reductions: quiet, non-checking moves late in the list get a shallower
@@ -351,7 +354,7 @@ fn alpha_beta(
             reduction = (r as usize + !improving as usize).saturating_sub(pv_node as usize).min(depth - 2);
         }
         let score = pvs_child(board, depth - 1, ply + 1, alpha, beta, (i > 0).then_some(reduction), ctx);
-        board.unmake_move(m, &undo);
+        ctx.eval.unmake_move(board, m, &undo);
 
         if ctx.stop_flag.load(Ordering::Relaxed) {
             return 0;
@@ -436,7 +439,7 @@ fn quiescence(board: &mut Board, mut alpha: i32, beta: i32, ctx: &mut SearchCont
         return 0;
     }
 
-    let stand_pat = evaluate(board);
+    let stand_pat = ctx.eval.evaluate(board);
     if stand_pat >= beta {
         return beta;
     }
@@ -452,9 +455,9 @@ fn quiescence(board: &mut Board, mut alpha: i32, beta: i32, ctx: &mut SearchCont
         if !see_ge(board, m, 0) {
             continue;
         }
-        let undo = board.make_move(m);
+        let undo = ctx.eval.make_move(board, m);
         let score = -quiescence(board, -beta, -alpha, ctx);
-        board.unmake_move(m, &undo);
+        ctx.eval.unmake_move(board, m, &undo);
 
         if ctx.stop_flag.load(Ordering::Relaxed) {
             return 0;
@@ -507,6 +510,7 @@ pub fn search(
         start_time: Instant::now(),
     };
     let mut heur = Heuristics::new();
+    let mut evaluator = Evaluator::new(board);
 
     let mut root_moves = MoveList::new();
     board.generate_legal_moves(&mut root_moves);
@@ -572,14 +576,15 @@ pub fn search(
             stats: &mut stats,
             tt: &mut *tt,
             heur: &mut heur,
+            eval: &mut evaluator,
         };
 
         for (i, &m) in candidate_moves.iter().enumerate() {
-            ctx.heur.eval_at[0] = if board.is_in_check() { NO_EVAL } else { evaluate(board) };
+            ctx.heur.eval_at[0] = if board.is_in_check() { NO_EVAL } else { ctx.eval.evaluate(board) };
             ctx.heur.record(board, 0, m);
-            let undo = board.make_move(m);
+            let undo = ctx.eval.make_move(board, m);
             let score = pvs_child(board, current_depth - 1, 1, alpha, beta, (i > 0).then_some(0), &mut ctx);
-            board.unmake_move(m, &undo);
+            ctx.eval.unmake_move(board, m, &undo);
 
             if stop_flag.load(Ordering::Relaxed) {
                 break;

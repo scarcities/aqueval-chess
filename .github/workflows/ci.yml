@@ -12,6 +12,8 @@ jobs:
           components: clippy
       - run: cargo build --release
       - run: cargo test --release
+      - run: cargo test --release --features nnue
       - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo clippy --all-targets --features nnue -- -D warnings
       - name: Bench
         run: ./target/release/quant bench

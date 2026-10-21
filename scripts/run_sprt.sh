@@ -38,6 +38,6 @@ exec "${FASTCHESS:-fastchess}" \
     -engine cmd="$base" name=base \
     -each tc="${TC:-8+0.08}" option.Hash="${HASH:-16}" option.Threads=1 \
     -openings file="$book" format="${book##*.}" order=random \
-    -repeat -recover -rounds "${ROUNDS:-50000}" -concurrency "${CONCURRENCY:-10}" \
+    -repeat -report penta=true -recover -rounds "${ROUNDS:-50000}" -concurrency "${CONCURRENCY:-10}" \
     -sprt $bounds alpha=0.05 beta=0.05 model=normalized \
     -pgnout file="${PGN:-sprt.pgn}"

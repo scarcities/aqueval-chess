@@ -196,6 +196,7 @@ fn parse_go(board: &Board, tokens: &[&str], move_overhead_ms: u64) -> ParsedGo {
         limits: SearchLimits {
             depth,
             nodes,
+            soft_nodes: None,
             time_limits,
             infinite,
             ponder,

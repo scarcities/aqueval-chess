@@ -6,3 +6,4 @@ pub mod search;
 pub mod uci;
 pub mod bench;
 pub mod nnue;
+pub mod datagen;

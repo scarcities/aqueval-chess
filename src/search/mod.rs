@@ -25,6 +25,8 @@ pub const MATE_THRESHOLD: i32 = 25000;
 pub struct SearchLimits {
     pub depth: Option<usize>,
     pub nodes: Option<u64>,
+    /// Do not start another iteration once this many nodes are searched (data generation).
+    pub soft_nodes: Option<u64>,
     pub time_limits: TimeLimits,
     pub infinite: bool,
     pub ponder: bool,
@@ -630,6 +632,9 @@ pub fn search(
             if stats.nodes >= max_nodes {
                 break;
             }
+        }
+        if limits.soft_nodes.is_some_and(|soft| stats.nodes >= soft) {
+            break;
         }
 
         // Check soft time limit: the next iteration costs several times the last one,

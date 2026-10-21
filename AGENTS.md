@@ -73,6 +73,8 @@ Run with `scripts/run_sprt.sh`, one test at a time, fastchess concurrency 10 (2 
 | Futility pruning, depth ≤ 3, margin 150·depth (vs check extensions) | [0, 5] | failed: no decision at 4000-game cap (LLR 1.69) | +9.6 ± 8.2 | 4000 |
 | Futility pruning, depth ≤ 4, margin 80 + 80·depth, the one variation (vs check extensions) | [0, 5] | failed: no decision at 4000-game cap (LLR 2.25) | +12.8 ± 8.6 | 4000 |
 
+**Protocol from 2026-10-21 (after the IIR test; integration plan "Epsylons Elo-Fahrplan", docs/ROADMAP.md):** bounds are in **normalized Elo (nElo)**, fastchess `model=normalized`, pentanomial game pairs, cap 25,000 games (`ROUNDS=12500`). Gainers: [0, 10] nElo (≈ [0, 5.8] logistic Elo). Enablers, simplifications and speed-ups: [−8, 0] nElo. Time management: 20+0.2. Stop rule unchanged: three features in a row that fail or are inconclusive stop the queue.
+
 **Queue 2026-10-19:** inconclusive results (no decision at the game cap) are logged as "inconclusive" with the Elo estimate. Caps: 15,000 games for [0, 5], 20,000 for futility and the aspiration retest. **Change 2026-10-21:** the time-management test runs at 20+0.2 instead of 40+0.4. A short-lived 10,000-game cap was replaced the same day: [0, 5] tests use pentanomial statistics (game pairs, `-report penta=true`, which fastchess also defaults to) and cap at **25,000 games**; inconclusive at the cap is logged as before. The IIR test already running then keeps its 15,000-game cap because fastchess cannot change it mid-run.
 
 | Change | Bounds | Result | Elo | Games |

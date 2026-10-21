@@ -73,7 +73,7 @@ Run with `scripts/run_sprt.sh`, one test at a time, fastchess concurrency 10 (2 
 | Futility pruning, depth ≤ 3, margin 150·depth (vs check extensions) | [0, 5] | failed: no decision at 4000-game cap (LLR 1.69) | +9.6 ± 8.2 | 4000 |
 | Futility pruning, depth ≤ 4, margin 80 + 80·depth, the one variation (vs check extensions) | [0, 5] | failed: no decision at 4000-game cap (LLR 2.25) | +12.8 ± 8.6 | 4000 |
 
-**Queue 2026-10-19:** inconclusive results (no decision at the game cap) are logged as "inconclusive" with the Elo estimate. Caps: 15,000 games for [0, 5], 20,000 for futility and the aspiration retest.
+**Queue 2026-10-19:** inconclusive results (no decision at the game cap) are logged as "inconclusive" with the Elo estimate. Caps: 15,000 games for [0, 5], 20,000 for futility and the aspiration retest. **Change 2026-10-21:** [0, 5] tests now cap at 10,000 games (applied to the running IIR test from game 10,000 on); the time-management test runs at 20+0.2 instead of 40+0.4.
 
 | Change | Bounds | Result | Elo | Games |
 |---|---|---|---|---|

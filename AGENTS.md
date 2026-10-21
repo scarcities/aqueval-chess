@@ -43,7 +43,7 @@ Invariants: no heap allocation in movegen, make/unmake or search recursion; `sha
 | Stack `MoveList` vs `Vec` | Stack array kept: zero heap allocations in movegen. |
 | Strict legal movegen vs pseudo-legal + check | Legal generation kept: lets perft bulk-count at the last ply. |
 | Aspiration windows (fail-hard search, ±25 from depth 4 and ±50 from depth 6) | Not merged: both ~+4 Elo, SPRT [0, 5] undecided after 4000 games each. Code on branches `p2/aspiration`, `p2/aspiration-v2`. Worth retrying after a fail-soft search. |
-| Late move pruning (move-count based, no history) | Not merged: −21 Elo, conservative variant ~−4. Code on `p2/lmp-main`, `p2/lmp-v2`. Retry with history-aware move counts / an "improving" flag. |
+| Late move pruning (move-count based) | Without "improving" −21 / −4 (not merged); with improving-scaled move counts +26 (2026-10-21, merged). |
 | Futility pruning (static eval margin, fail-hard) | Undecided twice under a 4000-game cap (+10, +13); passed the 2026-10-19 retest (+10.2 ± 6.5, 6652 games) and merged. |
 | Capture history (gravity table, bonus/malus on capture cutoffs, added to MVV-LVA) | Not merged: −5.7 (/32) and −5.1 (/8), H0 both times on top of SEE ordering. Code on `q5-caphist`, `q5b-caphist`. Retry using it in the SEE threshold / capture pruning rather than only ordering. |
 
@@ -85,6 +85,7 @@ Run with `scripts/run_sprt.sh`, one test at a time, fastchess concurrency 10 (2 
 | Continuation history 1+2 ply, ordering weight 1 (vs counter move) | [0, 5] | inconclusive at 15,000-game cap (LLR 0.06) | +2.1 ± 4.5 | 15000 |
 | Continuation history 1+2 ply, ordering weight ×2, the one variation (vs counter move) | [0, 5] | H1 accepted | +8.2 ± 5.6 | 9278 |
 | "Improving" heuristic for RFP, LMR and futility margins (vs continuation history) | [0, 5] | H1 accepted | +22.4 ± 10.3 | 2796 |
+| Late move pruning retest, (3 + depth²)/(2 − improving), depth ≤ 6 (vs improving) | [0, 5] | H1 accepted | +26.1 ± 11.3 | 2424 |
 
 ## Future roadmap
 

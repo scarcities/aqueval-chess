@@ -4,8 +4,8 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
-### Internal iterative reductions (bench 888666 → 484663)
-- Nodes with depth ≥ 4 and no TT move are searched one ply shallower.
+### Internal iterative reductions, variant 2 (bench 888666 → 611216)
+- Nodes with depth ≥ 6 and no TT move are searched one ply shallower (variant 2; depth ≥ 4 was the first try).
 
 ### Late move pruning with "improving" (bench 1387095 → 888666)
 - At null-window nodes not in check with depth ≤ 6, quiet non-killer moves after the first 3 + depth² (improving) or (3 + depth²)/2 (not improving) are skipped. Earlier move-count LMP without improving lost ~21 Elo.

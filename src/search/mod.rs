@@ -249,7 +249,7 @@ fn alpha_beta(
 
     // Internal iterative reduction: without a TT move this node was never searched (or its
     // move was useless), so search it one ply shallower instead of paying for a full depth.
-    if tt_move == Move::NULL && depth >= 4 {
+    if tt_move == Move::NULL && depth >= 6 {
         depth -= 1;
     }
 

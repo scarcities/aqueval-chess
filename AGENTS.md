@@ -25,19 +25,21 @@ Invariants: no heap allocation in movegen, make/unmake or search recursion; `sha
 
 ## Current status
 
-- **Elo estimate (vs limited Stockfish):** ~2430 (2026-10-19, after Phase 2 features: PST eval, PVS, TT, TT/MVV-LVA ordering, killers + history, null move pruning, LMR, reverse futility pruning, check extensions). Approximation against Stockfish 17 with `UCI_LimitStrength`, not a CCRL rating; SF's Elo scale is calibrated at longer time controls, so levels disagree somewhat.
+- **Elo estimate (vs limited Stockfish):** ~2560 (2026-10-23, gauntlet "HCE final" after docs/ROADMAP.md Phase 1: draw hygiene, pawn correction history, fail-soft, aspiration windows, time management on top of the 2026-10-21 search). Approximation against Stockfish 17 with `UCI_LimitStrength`, not a CCRL rating; SF's Elo scale is calibrated at longer time controls, so levels disagree somewhat (here by ~70).
 
   | Date | Opponent | TC | Games | Score | Elo diff | Implied Quant Elo |
   |---|---|---|---|---|---|---|
+  | 2026-10-23 | SF 17, UCI_Elo 2300 | 10+0.1 | 200 | 157.0 (78.5 %) | +225 ± 56 | ~2524 |
+  | 2026-10-23 | SF 17, UCI_Elo 2600 | 10+0.1 | 200 | 99.0 (49.5 %) | −3 ± 45 | ~2596 |
   | 2026-10-19 | SF 17, UCI_Elo 2300 | 10+0.1 | 200 | 130.5 (65.3 %) | +109 ± 47 | ~2409 |
   | 2026-10-19 | SF 17, UCI_Elo 2600 | 10+0.1 | 200 | 59.0 (29.5 %) | −151 ± 50 | ~2448 |
   | 2026-10-17 | SF 17, UCI_Elo 2000 | 10+0.1 | 200 | 110.5 (55.3 %) | +37 ± 46 | ~2036 |
   | 2026-10-17 | SF 17, UCI_Elo 2300 | 10+0.1 | 200 | 86.5 (43.3 %) | −47 ± 44 | ~2252 |
 
-  2026-10-17 rows: after steps 1–4 only (~2150). Levels picked from 20-game probes. Rerun: `scripts/elo_gauntlet.sh` with `LEVELS="2300 2600"`.
+  2026-10-23 levels picked from 20-game probes (2600: 47.5 %, 2900: 10 %, 3190: 10 %). 2026-10-19 rows: ~2430. 2026-10-17 rows: after steps 1–4 only (~2150). Rerun: `scripts/elo_gauntlet.sh` with `LEVELS="2300 2600"`.
 - **Bench signature:** 1032928
 - **Perft 6 startpos:** see CHANGELOG.md for nps (bulk and non-bulk).
-- **Roadmap:** Phase 1 (Foundation) complete. Phase 2 (Search) in progress: core search, ordering and basic pruning merged; aspiration windows, late move pruning and futility pruning not yet (see SPRT log).
+- **Roadmap:** docs/ROADMAP.md (integration plan). Phase 1 (search, steps 1.0–1.7) done 2026-10-23: all merged except TT buckets (1.2, H0 twice). Next: Phase 2, NNUE gen-0 (datagen ~14 h, then training), waiting to start the datagen run.
 
 ## Ideas tried
 

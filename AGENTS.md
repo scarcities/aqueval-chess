@@ -46,7 +46,7 @@ Invariants: no heap allocation in movegen, make/unmake or search recursion; `sha
 | Fancy magics vs PEXT for sliders | Magics chosen: PEXT is microcoded (~18 cycles) on Zen+, magics use one `imul`. Bulk perft reaches ~140 Mnps. |
 | Stack `MoveList` vs `Vec` | Stack array kept: zero heap allocations in movegen. |
 | Strict legal movegen vs pseudo-legal + check | Legal generation kept: lets perft bulk-count at the last ply. |
-| Aspiration windows (fail-hard search, ±25 from depth 4 and ±50 from depth 6) | Not merged: both ~+4 Elo, SPRT [0, 5] undecided after 4000 games each. Code on branches `p2/aspiration`, `p2/aspiration-v2`. Worth retrying after a fail-soft search. |
+| Aspiration windows (fail-hard search, ±25 from depth 4 and ±50 from depth 6) | Fail-hard versions ~+4, undecided at 4000 games (branches `p2/aspiration`, `p2/aspiration-v2`). On fail-soft with a widening window and shallower fail-high re-search: +44 (2026-10-23, merged). |
 | Late move pruning (move-count based) | Without "improving" −21 / −4 (not merged); with improving-scaled move counts +26 (2026-10-21, merged). |
 | Futility pruning (static eval margin, fail-hard) | Undecided twice under a 4000-game cap (+10, +13); passed the 2026-10-19 retest (+10.2 ± 6.5, 6652 games) and merged. |
 | Internal iterative reductions | Inconclusive at 15,000 games (+2.8 ± 4.4). Per docs/ROADMAP.md not rerun as-is; a depth ≥ 6 variant is on branch `q10c-iir` for a later, improved hypothesis. |
@@ -101,6 +101,7 @@ Run with `scripts/run_sprt.sh`, one test at a time, fastchess concurrency 10 (2 
 | TT buckets: 2 entries, depth-preferred + always-replace, the one variation (vs draw hygiene) | [0, 10] nElo | H0 accepted | +1.9 ± 4.7 (nElo +2.4 ± 5.8) | 13692 |
 | Pawn-structure correction history for the static eval (vs draw hygiene; TT buckets not merged) | [0, 10] nElo | H1 accepted | +20.6 ± 13.0 (nElo +26.7 ± 16.7) | 1654 |
 | Fail-soft search: cutoffs, fail-lows, NMP and qsearch return the best score (enabler, vs pawn correction history) | [−8, 0] nElo | H1 accepted | +26.2 ± 15.5 (nElo +33.0 ± 19.5) | 1222 |
+| Aspiration windows on fail-soft: ±20 from depth 4, widening by half, fail-high re-searched up to two plies shallower (vs fail-soft) | [0, 10] nElo | H1 accepted | +44.4 ± 20.9 (nElo +54.2 ± 25.2) | 732 |
 
 ## Future roadmap
 

@@ -664,7 +664,9 @@ pub fn search(
             root_history,
         };
 
-        let (depth_best_move, depth_best_score) = loop {
+        // `usable`: the window attempt searched its first move fully without failing low, so
+        // its best move is at least as good as last iteration's (which is searched first).
+        let (depth_best_move, depth_best_score, usable) = loop {
             let search_depth = current_depth.saturating_sub(fail_highs).max(1);
             let mut alpha = alpha_w;
             let mut depth_best_move = candidate_moves[0];
@@ -695,7 +697,7 @@ pub fn search(
             }
 
             if stop_flag.load(Ordering::Relaxed) {
-                break (depth_best_move, depth_best_score);
+                break (depth_best_move, depth_best_score, depth_best_score > alpha_w);
             }
             if depth_best_score <= alpha_w && alpha_w > -32000 {
                 beta_w = (alpha_w + beta_w) / 2;
@@ -708,12 +710,17 @@ pub fn search(
                 let pos = candidate_moves.iter().position(|&m| m == depth_best_move).unwrap();
                 candidate_moves[..=pos].rotate_right(1);
             } else {
-                break (depth_best_move, depth_best_score);
+                break (depth_best_move, depth_best_score, true);
             }
             delta += delta / 2;
         };
 
         if stop_flag.load(Ordering::Relaxed) {
+            // Keep a move from the aborted iteration once it beat the window.
+            if usable && depth_best_score > -32000 {
+                best_move = depth_best_move;
+                best_score = depth_best_score;
+            }
             break;
         }
 
@@ -748,10 +755,10 @@ pub fn search(
             break;
         }
 
-        // Check soft time limit: the next iteration costs several times the last one,
-        // so do not start it once half the soft budget is gone.
+        // Soft time limit: start another iteration until it is used up; the hard limit stops
+        // an iteration that runs long, and its best move so far is kept (see above).
         if let Some(soft) = limits.time_limits.soft_limit {
-            if elapsed >= soft / 2 {
+            if elapsed >= soft {
                 break;
             }
         }

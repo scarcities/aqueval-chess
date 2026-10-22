@@ -4,6 +4,9 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### Time management: use the soft limit, keep aborted iterations (bench unchanged, 1032928)
+- A new iteration starts while less than the soft limit has elapsed (was half of it); the hard limit still stops the search. When an iteration is aborted, its best move is kept if it already beat the aspiration window. Bench is depth-limited, so the signature does not change.
+
 ### Aspiration windows on fail-soft (bench 817175 → 1032928)
 - From depth 4 the root searches a ±20 window around the last score; on a fail-low the window drops (beta to the middle, alpha below the result), on a fail-high it rises and the next try is one ply shallower (at most two). The window grows by half on every fail, and the move that failed high is searched first.
 

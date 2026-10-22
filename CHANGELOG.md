@@ -4,6 +4,9 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### TT buckets (bench 888437 → 888811)
+- Four 16-byte entries per 64-byte bucket (one cache line). Store reuses the slot with the same key, else replaces the shallowest entry, with each search of age counting 8 plies. Previously every collision overwrote the single slot, deep entries included.
+
 ### Draw hygiene (bench 888666 → 888437)
 - Repetition inside the search: a single earlier occurrence on the search path (from the root on) is a draw; positions from the game before the root still need a threefold. Previously the search only scored threefold repetitions.
 - No TT cutoffs at halfmove clock ≥ 90, where a stored score can miss an approaching 50-move draw.

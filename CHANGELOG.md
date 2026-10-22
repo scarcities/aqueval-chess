@@ -4,6 +4,9 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### Aspiration windows on fail-soft (bench 817175 → 1032928)
+- From depth 4 the root searches a ±20 window around the last score; on a fail-low the window drops (beta to the middle, alpha below the result), on a fail-high it rises and the next try is one ply shallower (at most two). The window grows by half on every fail, and the move that failed high is searched first.
+
 ### Fail-soft search (bench 1029973 → 817175)
 - Beta cutoffs, fail-lows, null move pruning (except unproven mates) and quiescence return the best score found instead of the window bound, and the TT stores it. Enabler for aspiration windows (docs/ROADMAP.md 1.4/1.5).
 

@@ -641,10 +641,15 @@ pub fn search(
     let max_depth = limits.depth.unwrap_or(64);
 
     for current_depth in 1..=max_depth {
-        let mut alpha = -32000;
-        let beta = 32000;
-        let mut depth_best_move = candidate_moves[0];
-        let mut depth_best_score = -32000;
+        // Aspiration window around the last score from depth 4; it widens by half on each
+        // fail, and a fail-high is re-searched one ply shallower (at most two plies).
+        let mut delta = 20;
+        let (mut alpha_w, mut beta_w) = if current_depth >= 4 {
+            ((best_score - delta).max(-32000), (best_score + delta).min(32000))
+        } else {
+            (-32000, 32000)
+        };
+        let mut fail_highs = 0;
 
         // Order root moves: place current best_move first, then captures
         candidate_moves.sort_by_key(|&m| std::cmp::Reverse(heur.order_key(board, m, best_move, Move::NULL, 0)));
@@ -659,26 +664,54 @@ pub fn search(
             root_history,
         };
 
-        for (i, &m) in candidate_moves.iter().enumerate() {
-            ctx.heur.eval_at[0] = if board.is_in_check() { NO_EVAL } else { ctx.eval.evaluate(board) };
-            ctx.heur.record(board, 0, m);
-            let undo = ctx.eval.make_move(board, m);
-            let score = pvs_child(board, current_depth - 1, 1, alpha, beta, (i > 0).then_some(0), &mut ctx);
-            ctx.eval.unmake_move(board, m, &undo);
+        let (depth_best_move, depth_best_score) = loop {
+            let search_depth = current_depth.saturating_sub(fail_highs).max(1);
+            let mut alpha = alpha_w;
+            let mut depth_best_move = candidate_moves[0];
+            let mut depth_best_score = -32000;
+
+            for (i, &m) in candidate_moves.iter().enumerate() {
+                ctx.heur.eval_at[0] = if board.is_in_check() { NO_EVAL } else { ctx.eval.evaluate(board) };
+                ctx.heur.record(board, 0, m);
+                let undo = ctx.eval.make_move(board, m);
+                let score = pvs_child(board, search_depth - 1, 1, alpha, beta_w, (i > 0).then_some(0), &mut ctx);
+                ctx.eval.unmake_move(board, m, &undo);
+
+                if stop_flag.load(Ordering::Relaxed) {
+                    break;
+                }
+
+                if score > depth_best_score {
+                    depth_best_score = score;
+                    depth_best_move = m;
+                }
+
+                if score > alpha {
+                    alpha = score;
+                }
+                if score >= beta_w {
+                    break;
+                }
+            }
 
             if stop_flag.load(Ordering::Relaxed) {
-                break;
+                break (depth_best_move, depth_best_score);
             }
-
-            if score > depth_best_score {
-                depth_best_score = score;
-                depth_best_move = m;
+            if depth_best_score <= alpha_w && alpha_w > -32000 {
+                beta_w = (alpha_w + beta_w) / 2;
+                alpha_w = (depth_best_score - delta).max(-32000);
+                fail_highs = 0;
+            } else if depth_best_score >= beta_w && beta_w < 32000 {
+                beta_w = (depth_best_score + delta).min(32000);
+                fail_highs = (fail_highs + 1).min(2);
+                // Search the move that failed high first next time.
+                let pos = candidate_moves.iter().position(|&m| m == depth_best_move).unwrap();
+                candidate_moves[..=pos].rotate_right(1);
+            } else {
+                break (depth_best_move, depth_best_score);
             }
-
-            if score > alpha {
-                alpha = score;
-            }
-        }
+            delta += delta / 2;
+        };
 
         if stop_flag.load(Ordering::Relaxed) {
             break;

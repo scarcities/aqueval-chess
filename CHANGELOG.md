@@ -4,6 +4,9 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### Fail-soft search (bench 1029973 → 817175)
+- Beta cutoffs, fail-lows, null move pruning (except unproven mates) and quiescence return the best score found instead of the window bound, and the TT stores it. Enabler for aspiration windows (docs/ROADMAP.md 1.4/1.5).
+
 ### Static eval correction history, pawn structure (bench 888437 → 1029973)
 - Table [side][14-bit pawn-structure hash] of learned (search score − raw eval), added to the static eval used for pruning and "improving". Updated when a node's result is reliable relative to the eval (exact, or a fail-high above / fail-low below it, with a quiet or no best move), weighted by depth, clamped to ±128 cp. Reset every `go`.
 

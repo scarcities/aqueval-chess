@@ -328,7 +328,7 @@ fn alpha_beta(
             return 0;
         }
         if score >= beta {
-            return beta;
+            return if score >= MATE_THRESHOLD { beta } else { score };
         }
     }
 
@@ -356,6 +356,7 @@ fn alpha_beta(
     }
 
     let mut best_move = Move::NULL;
+    let mut best_score = -MATE_SCORE;
     let pv_node = beta - alpha > 1;
     let mut tried_quiets = [Move::NULL; 64];
     let mut quiets_tried = 0;
@@ -414,25 +415,30 @@ fn alpha_beta(
                 }
                 ctx.heur.update_cont(board, ply, m, &tried_quiets[..quiets_tried], depth);
             }
-            if !in_check && !m.is_capture() && beta > static_eval {
-                ctx.heur.update_corr(board, static_eval, beta, depth);
+            if !in_check && !m.is_capture() && score > static_eval {
+                ctx.heur.update_corr(board, static_eval, score, depth);
             }
-            ctx.tt.store(key, m, beta, depth as i32, Bound::Lower, ply);
-            return beta;
+            ctx.tt.store(key, m, score, depth as i32, Bound::Lower, ply);
+            return score;
         }
+        best_score = best_score.max(score);
         if score > alpha {
             alpha = score;
             best_move = m;
         }
     }
+    // Every move pruned: fall back to the fail-hard bound.
+    if best_score == -MATE_SCORE {
+        best_score = alpha;
+    }
 
     let bound = if best_move == Move::NULL { Bound::Upper } else { Bound::Exact };
     let quiet_best = best_move == Move::NULL || !best_move.is_capture();
-    if !in_check && quiet_best && (bound == Bound::Exact || alpha < static_eval) {
-        ctx.heur.update_corr(board, static_eval, alpha, depth);
+    if !in_check && quiet_best && (bound == Bound::Exact || best_score < static_eval) {
+        ctx.heur.update_corr(board, static_eval, best_score, depth);
     }
-    ctx.tt.store(key, best_move, alpha, depth as i32, bound, ply);
-    alpha
+    ctx.tt.store(key, best_move, best_score, depth as i32, bound, ply);
+    best_score
 }
 
 /// Principal variation search for one child (already made on `board`), from the parent's view:
@@ -511,9 +517,10 @@ fn quiescence(board: &mut Board, mut alpha: i32, beta: i32, ctx: &mut SearchCont
 
     let stand_pat = ctx.eval.evaluate(board);
     if stand_pat >= beta {
-        return beta;
+        return stand_pat;
     }
     alpha = alpha.max(stand_pat);
+    let mut best_score = stand_pat;
 
     let mut moves = MoveList::new();
     board.generate_legal_moves(&mut moves);
@@ -533,11 +540,12 @@ fn quiescence(board: &mut Board, mut alpha: i32, beta: i32, ctx: &mut SearchCont
             return 0;
         }
         if score >= beta {
-            return beta;
+            return score;
         }
+        best_score = best_score.max(score);
         alpha = alpha.max(score);
     }
-    alpha
+    best_score
 }
 
 /// Time/node limit check shared by the main search and quiescence; sets the stop flag.

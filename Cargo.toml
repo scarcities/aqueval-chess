@@ -12,6 +12,11 @@ path = "src/lib.rs"
 name = "quant"
 path = "src/main.rs"
 
+[features]
+# NNUE evaluation in the search (the handcrafted eval stays the default build).
+# Embed a net with `EVALFILE=<path> cargo build --release --features nnue`.
+nnue = []
+
 [dependencies]
 
 [dev-dependencies]

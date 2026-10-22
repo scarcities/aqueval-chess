@@ -25,6 +25,18 @@ Status: `todo`, `in progress`, `review`, `done`.
 | P2-03 | Real ponder: on `ponderhit` switch to normal time control instead of moving at once | [LEAD] | todo |
 | P2-04 | PVS + transposition table + quiescence (start of the Phase 2 roadmap in AGENTS.md) | [LEAD] | todo |
 
+## Phase 3 — NNUE (prepared, see docs/NNUE.md)
+
+| ID | Task | Label | Status |
+|---|---|---|---|
+| P3-01 | NNUE inference: (768 → 256)x2 → 1 SCReLU, loader, lazy accumulators, AVX2 | [LEAD] | review |
+| P3-02 | Search integration behind `--features nnue`, UCI `EvalFile`/`UseNNUE`, `eval` command | [LEAD] | review |
+| P3-03 | `quant datagen` self-play data generation | [DELEGATE] | review |
+| P3-04 | Own trainer `scripts/nnue/train.py`; netviz reads the net format | [DELEGATE] | review |
+| P3-05 | Generate 50–100 M HCE positions (after the SPRT queue) | [DELEGATE] | todo |
+| P3-06 | Train the first net, sanity checks, SPRT vs HCE main [0, 10] | [LEAD] | todo |
+| P3-07 | Retune eval-scale-dependent search margins for NNUE | [LEAD] | todo |
+
 ### P2-02 spec (delegate)
 
 - **Goal:** one source of truth for undo data. `Board::make_move` already pushes the `UndoState` onto `self.history`; `unmake_move(m, &undo)` pops it again but uses the parameter.

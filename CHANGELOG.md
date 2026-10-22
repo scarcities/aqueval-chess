@@ -4,6 +4,9 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### NNUE infrastructure (bench unchanged, 888666)
+- `src/nnue/` ((768 → 256)x2 → 1 SCReLU, quantised, lazy incremental accumulators, AVX2 at run time), `search::evaluator::Evaluator`, `quant datagen`, `scripts/nnue/train.py`, netviz reads the net format. The search uses NNUE only in `--features nnue` builds with a net; the default build is unchanged. Details in docs/NNUE.md.
+
 ### Late move pruning with "improving" (bench 1387095 → 888666)
 - At null-window nodes not in check with depth ≤ 6, quiet non-killer moves after the first 3 + depth² (improving) or (3 + depth²)/2 (not improving) are skipped. Earlier move-count LMP without improving lost ~21 Elo.
 

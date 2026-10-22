@@ -14,10 +14,14 @@ Target machine: the reference machine (Zen+, 6c/12t, AVX2, no AVX-512, slow PEXT
 | `src/search/` | Phase 1 placeholder: iterative-deepening alpha-beta, material eval, soft/hard time limits |
 | `src/uci/` | UCI loop; search runs on its own thread so `stop`/`isready` stay responsive; `go perft N` prints divide |
 | `src/bench/` | Searches the six standard positions to depth 11; total nodes = bench signature |
+| `src/nnue/` | Phase 3 NNUE: (768 → 256)x2 → 1 SCReLU net, loader (bullet quantised.bin layout), lazy accumulator stack, AVX2 kernels picked at run time. Used by the search only in `--features nnue` builds; see docs/NNUE.md |
+| `src/search/evaluator.rs` | All make/unmake and static evals in the search go through `Evaluator` (HCE in the default build, NNUE accumulators in nnue builds) |
+| `src/datagen/` | `quant datagen`: self-play training data, `<FEN> \| <cp> \| <result>` per line |
+| `scripts/nnue/train.py` | Quant's own NNUE trainer (PyTorch, CPU or CUDA), data packing, exact integer eval for cross-checks |
 | `tests/` | Perft suites, movegen edge cases, 10k-position shakmaty cross-check, UCI subprocess tests, bench regression |
 | `harness/` | External perft harness that tests the shipped binary over UCI (see `harness/README.md`) |
 
-Invariants: no heap allocation in movegen, make/unmake or search recursion; `shakmaty` is a dev-dependency only (R1).
+Invariants: no heap allocation in movegen, make/unmake or search recursion; `shakmaty` is a dev-dependency only (R1). Search code makes and unmakes moves and evaluates only through `ctx.eval` (`Evaluator`), so NNUE accumulators stay in step.
 
 ## Current status
 
@@ -90,6 +94,7 @@ Run with `scripts/run_sprt.sh`, one test at a time, fastchess concurrency 10 (2 
 | "Improving" heuristic for RFP, LMR and futility margins (vs continuation history) | [0, 5] | H1 accepted | +22.4 ± 10.3 | 2796 |
 | Late move pruning retest, (3 + depth²)/(2 − improving), depth ≤ 6 (vs improving) | [0, 5] | H1 accepted | +26.1 ± 11.3 | 2424 |
 | Internal iterative reductions, depth ≥ 4 without TT move (vs LMP) | [0, 5] nElo, cap 15,000 (started before the 25k rule) | inconclusive (LLR 0.62) | +2.8 ± 4.4 | 15000 |
+| NNUE infrastructure (Evaluator wrapper, `nnue` feature off; non-regression, vs LMP) | [−8, 0] nElo | H1 accepted | −0.45 ± 4.55 (nElo −0.6 ± 6.0) | 13106 |
 
 ## Future roadmap
 
@@ -105,6 +110,8 @@ Run with `scripts/run_sprt.sh`, one test at a time, fastchess concurrency 10 (2 
 - Every feature tested with SPRT before merging
 
 ### Phase 3: NNUE
+
+Merged 2026-10-22 (SPRT [-8, 0] nElo H1, no-op in the default build): inference, search integration behind the `nnue` feature, `quant datagen`, own trainer, netviz loader. Plan, architecture, file format and training steps: docs/NNUE.md.
 
 - Decided 2026-10-22: install PyTorch (CPU build, ~200 MB, in a venv) for training. Install when NNUE gen-0 starts (ROADMAP Phase 2), not while an SPRT is running.
 - Data generation: self-play at fixed nodes with randomized openings, adjudication, filtering

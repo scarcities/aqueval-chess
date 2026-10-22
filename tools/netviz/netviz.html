@@ -33,7 +33,7 @@ input[type=file]{color:var(--muted)}
 <body>
 <header>
   <h1>Quant NetViz</h1>
-  <input type="file" id="file" title="Load a network file (.qnet)">
+  <input type="file" id="file" title="Load a network file (.nnue, bullet quantised.bin)">
   <button id="demo">Generate demo net</button>
   <span id="status" class="muted">No net loaded.</span>
   <span style="flex:1"></span>
@@ -45,14 +45,15 @@ input[type=file]{color:var(--muted)}
     <div class="row">
       <input type="text" id="fen" spellcheck="false" aria-label="FEN">
       <label>Activation
-        <select id="actfn"><option value="crelu">CReLU</option><option value="screlu">SCReLU</option></select>
+        <select id="actfn"><option value="screlu">SCReLU</option><option value="crelu">CReLU</option></select>
       </label>
       <span id="fenerr" class="err"></span>
     </div>
     <div class="row" style="margin-top:8px;align-items:flex-start">
-      <div>Output: <b id="out" style="font-size:18px">–</b>
-        <div class="muted">side to move is ignored (single white-view perspective)</div></div>
-      <div><div class="muted">Strongest contributions (activation × output weight)</div><table id="contrib"></table></div>
+      <div>Output: <b id="out" style="font-size:18px">–</b> <span class="muted">cp (float)</span>
+        <div>Engine (exact integer): <b id="exact">–</b> <span class="muted">cp</span></div>
+        <div class="muted">side to move's view; graph and heatmaps show the side to move's accumulator<br>and White's-view input weights</div></div>
+      <div><div class="muted">Strongest neurons (both perspectives × output weights, cp)</div><table id="contrib"></table></div>
     </div>
   </section>
   <section>
@@ -75,45 +76,70 @@ input[type=file]{color:var(--muted)}
   </section>
 </main>
 
-<!-- LOADER: only code that knows the file format. Adapt this block when the bullet format exists (Phase 3). -->
+<!-- LOADER: only code that knows the file format (the engine's net format, docs/NNUE.md). -->
 <script id="netio">
-// Demo format "QNET", little-endian:
-//   char[4] "QNET" | u32 version=1 | u32 nIn | u32 nH
-//   f32 w1[nIn*nH] (input-major: w1[f*nH+h]) | f32 b1[nH] | f32 w2[nH] | f32 b2[1]
-// Input feature f = piece*64 + sq; piece 0-5 = white PNBRQK, 6-11 = black pnbrqk; sq = rank*8+file (A1=0).
+// Net format = bullet quantised.bin as the engine loads it: no header, little-endian i16,
+//   ftW[768*N] (feature-major: ftW[f*N+h], x QA) | ftB[N] (x QA) | outW[2N] (side to move's
+//   half first, x QB) | outB[1] (x QA*QB) | zero padding to a multiple of 64 bytes.
+// Feature f (White's view) = colour*384 + type*64 + sq; colour 0 White, 1 Black; PNBRQK; A1=0.
+// Black's view of the same piece: (1-colour)*384 + type*64 + (sq^56).
 const NetIO = (() => {
-  const HDR = 16;
-  const size = (nIn, nH) => HDR + 4 * (nIn * nH + nH + nH + 1);
+  const QA = 255, QB = 64, SCALE = 400, NIN = 768;
+  const words = nH => NIN * nH + nH + 2 * nH + 1;
+  const pad64 = n => Math.ceil(n / 64) * 64;
+
+  function hiddenSize(bytes) {
+    for (let nH = 1; nH <= 4096; nH++) {
+      const b = 2 * words(nH);
+      if (b === bytes || pad64(b) === bytes) return nH;
+      if (b > bytes) break;
+    }
+    throw new Error(`${bytes} bytes is no (768 -> N)x2 -> 1 net`);
+  }
 
   function parse(buf) {
-    if (buf.byteLength < HDR) throw new Error('file too short');
+    const nH = hiddenSize(buf.byteLength);
+    const q = new Int16Array(words(nH));
     const dv = new DataView(buf);
-    if (dv.getUint32(0, true) !== 0x54454e51) throw new Error('bad magic (expected QNET)');
-    if (dv.getUint32(4, true) !== 1) throw new Error('unsupported version');
-    const nIn = dv.getUint32(8, true), nH = dv.getUint32(12, true);
-    if (buf.byteLength !== size(nIn, nH)) throw new Error(`size mismatch for ${nIn}x${nH} net`);
-    let o = HDR;
-    const take = n => { const a = new Float32Array(buf, o, n); o += 4 * n; return a; };
-    return { nIn, nH, w1: take(nIn * nH), b1: take(nH), w2: take(nH), b2: take(1) };
+    for (let i = 0; i < q.length; i++) q[i] = dv.getInt16(2 * i, true);
+    let o = 0;
+    const take = (n, scale) => { const a = Float32Array.from(q.subarray(o, o + n), v => v / scale); o += n; return a; };
+    const w1 = take(NIN * nH, QA), b1 = take(nH, QA), w2 = take(2 * nH, QB), b2 = take(1, QA * QB);
+    return { nIn: NIN, nH, w1, b1, w2, b2, q };
   }
 
   function serialize(net) {
-    const buf = new ArrayBuffer(size(net.nIn, net.nH));
-    const dv = new DataView(buf);
-    dv.setUint32(0, 0x54454e51, true); dv.setUint32(4, 1, true);
-    dv.setUint32(8, net.nIn, true); dv.setUint32(12, net.nH, true);
-    let o = HDR;
-    for (const a of [net.w1, net.b1, net.w2, net.b2]) { new Float32Array(buf, o, a.length).set(a); o += 4 * a.length; }
-    return buf;
+    const n = words(net.nH), out = new ArrayBuffer(pad64(2 * n)), dv = new DataView(out);
+    let o = 0;
+    const put = (a, scale) => { for (const v of a) dv.setInt16(2 * o++, Math.max(-32768, Math.min(32767, Math.round(v * scale))), true); };
+    put(net.w1, QA); put(net.b1, QA); put(net.w2, QB); put(net.b2, QA * QB);
+    return out;
   }
 
-  // Random 768 -> 256 -> 1 net: noise plus a few piece/square blobs per neuron so heatmaps have structure.
+  // Exact integer eval as the engine computes it (cp, side to move's view): for cross-checks
+  // against the engine's `eval` command.
+  function exactEval(net, us, them) {
+    const { q, nH } = net, w2 = NIN * nH + nH, trunc = (a, b) => Math.trunc(a / b);
+    let sum = 0;
+    [us, them].forEach((feats, k) => {
+      for (let h = 0; h < nH; h++) {
+        let a = q[NIN * nH + h];
+        for (const f of feats) a = (a + q[f * nH + h]) << 16 >> 16; // i16 wraparound
+        const c = Math.min(Math.max(a, 0), QA);
+        sum += c * c * q[w2 + k * nH + h];
+      }
+    });
+    const out = trunc(sum, QA) + q[w2 + 2 * nH];
+    return Math.max(-20000, Math.min(20000, trunc(out * SCALE, QA * QB)));
+  }
+
+  // Random 768 -> 256 net: noise plus a few piece/square blobs per neuron so heatmaps have structure.
   function demo(seed = 1) {
     let s = seed >>> 0;
     const rnd = () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; };
     const gauss = () => Math.sqrt(-2 * Math.log(rnd() + 1e-12)) * Math.cos(2 * Math.PI * rnd());
-    const nIn = 768, nH = 256;
-    const w1 = new Float32Array(nIn * nH), b1 = new Float32Array(nH), w2 = new Float32Array(nH), b2 = new Float32Array(1);
+    const nH = 256;
+    const w1 = new Float32Array(NIN * nH), b1 = new Float32Array(nH), w2 = new Float32Array(2 * nH), b2 = new Float32Array(1);
     for (let h = 0; h < nH; h++) {
       const cx = rnd() * 8, cy = rnd() * 8, sig = 1 + rnd() * 2;
       for (let p = 0; p < 12; p++) {
@@ -123,12 +149,13 @@ const NetIO = (() => {
           w1[(p * 64 + sq) * nH + h] = 0.08 * gauss() + a * Math.exp(-d2 / (2 * sig * sig));
         }
       }
-      b1[h] = 0.2 * gauss(); w2[h] = 0.25 * gauss();
+      b1[h] = 0.2 * gauss(); w2[h] = 0.25 * gauss(); w2[nH + h] = 0.25 * gauss();
     }
     b2[0] = 0.1 * gauss();
-    return { nIn, nH, w1, b1, w2, b2 };
+    // Round-trip through the file format so the demo has the quantised values too.
+    return parse(serialize({ nH, w1, b1, w2, b2 }));
   }
-  return { parse, serialize, demo };
+  return { parse, serialize, demo, exactEval, SCALE };
 })();
 </script>
 
@@ -137,7 +164,7 @@ const NetIO = (() => {
 const $ = id => document.getElementById(id);
 const PIECES = 'PNBRQKpnbrqk';
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-const state = { net: null, feats: [], acc: null, act: null, out: 0, sel: 0, k: 300, ordIn: null, ordOut: null, maxW1: 1, maxW2: 1 };
+const state = { net: null, feats: [], stm: 0, acc: null, act: null, out: 0, sel: 0, k: 300, ordIn: null, ordOut: null, maxW1: 1, maxW2: 1 };
 
 // ---- model ----
 function parseFen(fen) {
@@ -156,19 +183,29 @@ function parseFen(fen) {
     }
     if (file !== 8) throw new Error(`rank ${8 - i} does not have 8 files`);
   });
-  return feats;
+  const stm = (fen.trim().split(/\s+/)[1] || 'w') === 'b' ? 1 : 0;
+  return { feats, stm };
 }
+
+// White-view feature -> the same piece seen from Black (own/enemy swapped, board mirrored).
+const blackView = f => (f < 384 ? 384 : 0) + (f % 384 & ~63) + ((f & 63) ^ 56);
 
 const activate = x => { const c = x < 0 ? 0 : x > 1 ? 1 : x; return $('actfn').value === 'screlu' ? c * c : c; };
 
 function forward() {
   const { w1, b1, w2, b2, nH } = state.net;
-  const acc = Float32Array.from(b1);
-  for (const f of state.feats) for (let h = 0; h < nH; h++) acc[h] += w1[f * nH + h];
+  const views = [state.feats, state.feats.map(blackView)];
+  const [us, them] = state.stm ? [views[1], views[0]] : views;
+  const accOf = feats => { const a = Float32Array.from(b1); for (const f of feats) for (let h = 0; h < nH; h++) a[h] += w1[f * nH + h]; return a; };
+  const acc = accOf(us), accThem = accOf(them);
   let out = b2[0];
-  const act = new Float32Array(nH);
-  for (let h = 0; h < nH; h++) { act[h] = activate(acc[h]); out += act[h] * w2[h]; }
-  Object.assign(state, { acc, act, out });
+  const act = new Float32Array(nH), actThem = new Float32Array(nH);
+  for (let h = 0; h < nH; h++) {
+    act[h] = activate(acc[h]); actThem[h] = activate(accThem[h]);
+    out += act[h] * w2[h] + actThem[h] * w2[nH + h];
+  }
+  const exact = NetIO.exactEval(state.net, us, them);
+  Object.assign(state, { acc, act, actThem, out: out * NetIO.SCALE, exact });
 }
 
 function sortedByMagnitude(a) {
@@ -183,7 +220,7 @@ function setNet(net, label) {
     maxW1: maxAbs(net.w1), maxW2: maxAbs(net.w2) });
   $('neuron').max = net.nH - 1; $('neuron').value = 0;
   $('app').hidden = false;
-  $('status').textContent = `${label}: ${net.nIn} → ${net.nH} → 1`;
+  $('status').textContent = `${label}: (${net.nIn} → ${net.nH})x2 → 1`;
   $('status').className = 'muted';
   update();
 }
@@ -233,7 +270,7 @@ function drawGraph() {
   }
   for (let i = 0; i < Math.min(k, nH); i++) {
     const h = state.ordOut[i], w = net.w2[h];
-    line(ctx, L.hPos(h), L.out, w, Math.abs(w) / state.maxW2);
+    line(ctx, L.hPos(h % nH), L.out, w, Math.abs(w) / state.maxW2);
   }
   // selected neuron: its 48 strongest inputs
   const mine = Array.from({ length: 768 }, (_, f) => f).sort((a, b) => Math.abs(net.w1[b * nH + sel]) - Math.abs(net.w1[a * nH + sel]));
@@ -252,7 +289,7 @@ function drawGraph() {
   ctx.globalAlpha = 1; ctx.strokeStyle = fg; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(sx, sy, L.grid * 0.5, 0, 7); ctx.stroke();
   // output node
   ctx.beginPath(); ctx.arc(...L.out, 14, 0, 7); ctx.fillStyle = sign(state.out); ctx.fill();
-  ctx.fillStyle = fg; ctx.textAlign = 'center'; ctx.fillText(state.out.toFixed(2), L.out[0], L.out[1] + 28); ctx.textAlign = 'start';
+  ctx.fillStyle = fg; ctx.textAlign = 'center'; ctx.fillText(state.out.toFixed(0), L.out[0], L.out[1] + 28); ctx.textAlign = 'start';
   ctx.globalAlpha = 1;
 }
 
@@ -277,27 +314,28 @@ function drawBoards() {
       if (on.has(p * 64 + sq)) { ctx.strokeStyle = fg; ctx.lineWidth = 2; ctx.strokeRect(x + 3, y + 3, c - 6, c - 6); }
     }
   }
-  $('ninfo').innerHTML = `neuron <b>${sel}</b> · bias ${net.b1[sel].toFixed(3)} · pre-act ${state.acc[sel].toFixed(3)} · act ${state.act[sel].toFixed(3)} · out weight ${net.w2[sel].toFixed(3)} · max |w| ${m.toFixed(3)}`;
+  $('ninfo').innerHTML = `neuron <b>${sel}</b> · bias ${net.b1[sel].toFixed(3)} · pre-act ${state.acc[sel].toFixed(3)} · act ${state.act[sel].toFixed(3)} · out weight ${net.w2[sel].toFixed(3)} (them ${net.w2[nH + sel].toFixed(3)}) · max |w| ${m.toFixed(3)}`;
 }
 
 function drawContrib() {
-  const { net, act } = state;
-  const rows = Array.from({ length: net.nH }, (_, h) => [h, act[h] * net.w2[h]])
+  const { net, act, actThem } = state, nH = net.nH;
+  const rows = Array.from({ length: nH }, (_, h) => [h, (act[h] * net.w2[h] + actThem[h] * net.w2[nH + h]) * NetIO.SCALE])
     .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 8);
   $('contrib').innerHTML = rows.map(([h, c]) =>
-    `<tr data-h="${h}"><td>#${h}</td><td>act ${act[h].toFixed(2)}</td><td class="${c >= 0 ? 'pos' : 'neg'}">${c >= 0 ? '+' : ''}${c.toFixed(3)}</td></tr>`).join('');
+    `<tr data-h="${h}"><td>#${h}</td><td>act ${act[h].toFixed(2)}</td><td class="${c >= 0 ? 'pos' : 'neg'}">${c >= 0 ? '+' : ''}${c.toFixed(1)} cp</td></tr>`).join('');
 }
 
 function update() {
   forward();
-  $('out').textContent = (state.out >= 0 ? '+' : '') + state.out.toFixed(4);
+  $('out').textContent = (state.out >= 0 ? '+' : '') + state.out.toFixed(1);
   $('out').className = state.out >= 0 ? 'pos' : 'neg';
+  $('exact').textContent = (state.exact >= 0 ? '+' : '') + state.exact;
   $('neuron').value = state.sel;
   drawGraph(); drawBoards(); drawContrib();
 }
 
 function setFen() {
-  try { state.feats = parseFen($('fen').value); $('fenerr').textContent = ''; }
+  try { Object.assign(state, parseFen($('fen').value)); $('fenerr').textContent = ''; }
   catch (e) { $('fenerr').textContent = e.message; return; }
   if (state.net) update();
 }

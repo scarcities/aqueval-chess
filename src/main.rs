@@ -10,6 +10,57 @@ fn print_usage() {
     println!("  quant bench [depth]                   # Runs deterministic benchmark suite");
     println!("  quant perft <depth> [fen] [--divide]  # Runs perft leaf node counting");
     println!("  quant divide <depth> [fen]            # Runs perft divide breakdown");
+    println!("  quant datagen [--out DIR] [--threads N] [--games N] [--nodes N] [--seed N]");
+    println!("                [--random-plies N] [--hash MB] [--evalfile NET]");
+    println!("                                        # Self-play training data (docs/NNUE.md)");
+}
+
+/// `quant datagen ...`: parses `--name value` pairs into a config and runs data generation.
+fn run_datagen(args: &[String]) {
+    let mut cfg = quant::datagen::DatagenConfig::default();
+    let mut it = args.iter();
+    while let Some(flag) = it.next() {
+        let Some(value) = it.next() else {
+            eprintln!("Error: {flag} needs a value");
+            process::exit(1);
+        };
+        let num = || -> u64 {
+            value.parse().unwrap_or_else(|_| {
+                eprintln!("Error: invalid value '{value}' for {flag}");
+                process::exit(1);
+            })
+        };
+        match flag.as_str() {
+            "--out" => cfg.out_dir = value.into(),
+            "--threads" => cfg.threads = num() as usize,
+            "--games" => cfg.games = num(),
+            "--nodes" => cfg.soft_nodes = num(),
+            "--seed" => cfg.seed = num(),
+            "--random-plies" => cfg.random_plies = num() as usize,
+            "--hash" => cfg.hash_mb = num() as usize,
+            "--evalfile" => {
+                if !cfg!(feature = "nnue") {
+                    eprintln!("Error: --evalfile needs a build with --features nnue");
+                    process::exit(1);
+                }
+                if let Err(e) = quant::nnue::load_eval_file(value) {
+                    eprintln!("Error: {e}");
+                    process::exit(1);
+                }
+            }
+            _ => {
+                eprintln!("Error: unknown datagen option {flag}");
+                print_usage();
+                process::exit(1);
+            }
+        }
+    }
+    let eval = if quant::nnue::active().is_some() && cfg!(feature = "nnue") { "NNUE" } else { "HCE" };
+    println!("datagen eval: {eval}");
+    if let Err(e) = quant::datagen::run(&cfg) {
+        eprintln!("Error: datagen failed: {e}");
+        process::exit(1);
+    }
 }
 
 fn main() {
@@ -128,6 +179,7 @@ fn main() {
             let divide_results = perft_divide(&mut board, depth);
             print!("{}", format_perft_divide(&divide_results));
         }
+        "datagen" => run_datagen(&args[2..]),
         other => {
             eprintln!("Unknown command: {}", other);
             print_usage();

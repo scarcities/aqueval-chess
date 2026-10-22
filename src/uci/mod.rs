@@ -196,6 +196,7 @@ fn parse_go(board: &Board, tokens: &[&str], move_overhead_ms: u64) -> ParsedGo {
         limits: SearchLimits {
             depth,
             nodes,
+            soft_nodes: None,
             time_limits,
             infinite,
             ponder,
@@ -205,8 +206,8 @@ fn parse_go(board: &Board, tokens: &[&str], move_overhead_ms: u64) -> ParsedGo {
     }
 }
 
-/// Parses `setoption name <id> [value <val>]`.
-fn handle_setoption(options: &mut UciOptions, tokens: &[&str]) {
+/// Parses `setoption name <id> [value <val>]`. Returns the option's message, if any.
+fn handle_setoption(options: &mut UciOptions, tokens: &[&str]) -> Option<String> {
     // Format: name <id...> [value <val...>]
     let mut name = String::new();
     let mut value: Option<String> = None;
@@ -235,9 +236,22 @@ fn handle_setoption(options: &mut UciOptions, tokens: &[&str]) {
         }
     }
 
-    if !name.is_empty() {
-        options.set_option(&name, value.as_deref());
+    if name.is_empty() {
+        return None;
     }
+    options.set_option(&name, value.as_deref())
+}
+
+/// `eval`: static evaluation of the current position (side to move's view), for debugging.
+fn eval_report(board: &Board) -> String {
+    #[allow(unused_mut)]
+    let mut out = format!("info string HCE eval: {} cp", crate::search::evaluate::evaluate(board));
+    #[cfg(feature = "nnue")]
+    match crate::nnue::active() {
+        Some(net) => out += &format!("\ninfo string NNUE eval: {} cp", net.evaluate_from_scratch(board)),
+        None => out += "\ninfo string NNUE eval: no net loaded (or UseNNUE is off)",
+    }
+    out
 }
 
 /// Runs the UCI protocol loop with the given reader and writer.
@@ -294,6 +308,7 @@ pub fn run_uci<R: BufRead, W: Write + Send + 'static>(mut reader: R, writer: Arc
                     | "ponderhit"
                     | "quit"
                     | "bench"
+                    | "eval"
             )
         });
 
@@ -325,9 +340,14 @@ pub fn run_uci<R: BufRead, W: Write + Send + 'static>(mut reader: R, writer: Arc
             }
             "setoption" => {
                 let old_hash = options.hash_mb;
-                handle_setoption(&mut options, args);
+                let message = handle_setoption(&mut options, args);
                 if options.hash_mb != old_hash {
                     *tt.lock().unwrap() = TranspositionTable::new(options.hash_mb);
+                }
+                if let Some(msg) = message {
+                    let mut w = writer.lock().unwrap();
+                    let _ = writeln!(w, "info string {msg}");
+                    let _ = w.flush();
                 }
             }
             "register" => {
@@ -475,6 +495,11 @@ pub fn run_uci<R: BufRead, W: Write + Send + 'static>(mut reader: R, writer: Arc
                 let depth = args.first().and_then(|s| s.parse::<usize>().ok());
                 let mut w = writer.lock().unwrap();
                 crate::bench::run_bench_with_writer(depth, &mut *w);
+                let _ = w.flush();
+            }
+            "eval" => {
+                let mut w = writer.lock().unwrap();
+                let _ = writeln!(w, "{}", eval_report(&board));
                 let _ = w.flush();
             }
             _ => {}

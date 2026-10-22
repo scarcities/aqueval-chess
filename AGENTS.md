@@ -102,6 +102,7 @@ Run with `scripts/run_sprt.sh`, one test at a time, fastchess concurrency 10 (2 
 | Pawn-structure correction history for the static eval (vs draw hygiene; TT buckets not merged) | [0, 10] nElo | H1 accepted | +20.6 ± 13.0 (nElo +26.7 ± 16.7) | 1654 |
 | Fail-soft search: cutoffs, fail-lows, NMP and qsearch return the best score (enabler, vs pawn correction history) | [−8, 0] nElo | H1 accepted | +26.2 ± 15.5 (nElo +33.0 ± 19.5) | 1222 |
 | Aspiration windows on fail-soft: ±20 from depth 4, widening by half, fail-high re-searched up to two plies shallower (vs fail-soft) | [0, 10] nElo | H1 accepted | +44.4 ± 20.9 (nElo +54.2 ± 25.2) | 732 |
+| Time management: start iterations until the soft limit (was half of it), keep the best move of an aborted iteration, at 20+0.2 (vs aspiration) | [0, 10] nElo | H1 accepted, 0 time losses | +60.6 ± 23.3 (nElo +80.6 ± 30.3) | 504 |
 
 ## Future roadmap
 

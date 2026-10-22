@@ -4,8 +4,8 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
-### TT buckets (bench 888437 → 888811)
-- Four 16-byte entries per 64-byte bucket (one cache line). Store reuses the slot with the same key, else replaces the shallowest entry, with each search of age counting 8 plies. Previously every collision overwrote the single slot, deep entries included.
+### TT buckets (bench 888437 → 887983)
+- Two 16-byte entries per 32-byte bucket: slot 0 keeps the deeper entry (replaced when the new one is at least as deep or slot 0 is from an earlier search), slot 1 is always replaced. Previously every collision overwrote the single slot, deep entries included. A 4-entry bucket with depth/age replacement failed first (H0).
 
 ### Draw hygiene (bench 888666 → 888437)
 - Repetition inside the search: a single earlier occurrence on the search path (from the root on) is a draw; positions from the game before the root still need a threefold. Previously the search only scored threefold repetitions.

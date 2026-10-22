@@ -106,6 +106,7 @@ Run with `scripts/run_sprt.sh`, one test at a time, fastchess concurrency 10 (2 
 
 ### Phase 3: NNUE
 
+- Decided 2026-10-22: install PyTorch (CPU build, ~200 MB, in a venv) for training. Install when NNUE gen-0 starts (ROADMAP Phase 2), not while an SPRT is running.
 - Data generation: self-play at fixed nodes with randomized openings, adjudication, filtering
 - Architecture: 768→256→1, then scale to HalfKA-style king input buckets, output buckets, hidden layer 1024+, SCReLU
 - Quantized inference with SIMD (AVX2 only on target hardware)

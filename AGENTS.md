@@ -99,6 +99,7 @@ Run with `scripts/run_sprt.sh`, one test at a time, fastchess concurrency 10 (2 
 | Draw hygiene: twofold repetition inside the search, no TT cutoffs at halfmove clock ≥ 90 (vs NNUE infrastructure) | [0, 10] nElo | H1 accepted | +25.2 ± 14.6 (nElo +32.7 ± 18.8) | 1310 |
 | TT buckets: 4 entries per 64-byte line, replace shallowest with age counting 8 plies (vs draw hygiene) | [0, 10] nElo | H0 accepted | −2.9 ± 8.4 (nElo −3.6 ± 10.5) | 4184 |
 | TT buckets: 2 entries, depth-preferred + always-replace, the one variation (vs draw hygiene) | [0, 10] nElo | H0 accepted | +1.9 ± 4.7 (nElo +2.4 ± 5.8) | 13692 |
+| Pawn-structure correction history for the static eval (vs draw hygiene; TT buckets not merged) | [0, 10] nElo | H1 accepted | +20.6 ± 13.0 (nElo +26.7 ± 16.7) | 1654 |
 
 ## Future roadmap
 

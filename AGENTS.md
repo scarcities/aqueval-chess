@@ -95,6 +95,7 @@ Run with `scripts/run_sprt.sh`, one test at a time, fastchess concurrency 10 (2 
 | Late move pruning retest, (3 + depth²)/(2 − improving), depth ≤ 6 (vs improving) | [0, 5] | H1 accepted | +26.1 ± 11.3 | 2424 |
 | Internal iterative reductions, depth ≥ 4 without TT move (vs LMP) | [0, 5] nElo, cap 15,000 (started before the 25k rule) | inconclusive (LLR 0.62) | +2.8 ± 4.4 | 15000 |
 | NNUE infrastructure (Evaluator wrapper, `nnue` feature off; non-regression, vs LMP) | [−8, 0] nElo | H1 accepted | −0.45 ± 4.55 (nElo −0.6 ± 6.0) | 13106 |
+| Draw hygiene: twofold repetition inside the search, no TT cutoffs at halfmove clock ≥ 90 (vs NNUE infrastructure) | [0, 10] nElo | H1 accepted | +25.2 ± 14.6 (nElo +32.7 ± 18.8) | 1310 |
 
 ## Future roadmap
 

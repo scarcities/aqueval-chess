@@ -50,6 +50,7 @@ Invariants: no heap allocation in movegen, make/unmake or search recursion; `sha
 | Late move pruning (move-count based) | Without "improving" −21 / −4 (not merged); with improving-scaled move counts +26 (2026-10-21, merged). |
 | Futility pruning (static eval margin, fail-hard) | Undecided twice under a 4000-game cap (+10, +13); passed the 2026-10-19 retest (+10.2 ± 6.5, 6652 games) and merged. |
 | Internal iterative reductions | Inconclusive at 15,000 games (+2.8 ± 4.4). Per docs/ROADMAP.md not rerun as-is; a depth ≥ 6 variant is on branch `q10c-iir` for a later, improved hypothesis. |
+| TT buckets (4-entry depth/age replacement; 2-entry depth-preferred + always-replace) | Not merged: H0 both (−2.9, +1.9) at 8+0.08 with 16 MB Hash, where the single-slot table rarely fills. Code on `r12-tt`, `r12b-tt`. Retry with longer TC or smaller Hash, or once singular extensions need deep entries to survive. |
 | Capture history (gravity table, bonus/malus on capture cutoffs, added to MVV-LVA) | Not merged: −5.7 (/32) and −5.1 (/8), H0 both times on top of SEE ordering. Code on `q5-caphist`, `q5b-caphist`. Retry using it in the SEE threshold / capture pruning rather than only ordering. |
 
 ## SPRT log
@@ -97,6 +98,7 @@ Run with `scripts/run_sprt.sh`, one test at a time, fastchess concurrency 10 (2 
 | NNUE infrastructure (Evaluator wrapper, `nnue` feature off; non-regression, vs LMP) | [−8, 0] nElo | H1 accepted | −0.45 ± 4.55 (nElo −0.6 ± 6.0) | 13106 |
 | Draw hygiene: twofold repetition inside the search, no TT cutoffs at halfmove clock ≥ 90 (vs NNUE infrastructure) | [0, 10] nElo | H1 accepted | +25.2 ± 14.6 (nElo +32.7 ± 18.8) | 1310 |
 | TT buckets: 4 entries per 64-byte line, replace shallowest with age counting 8 plies (vs draw hygiene) | [0, 10] nElo | H0 accepted | −2.9 ± 8.4 (nElo −3.6 ± 10.5) | 4184 |
+| TT buckets: 2 entries, depth-preferred + always-replace, the one variation (vs draw hygiene) | [0, 10] nElo | H0 accepted | +1.9 ± 4.7 (nElo +2.4 ± 5.8) | 13692 |
 
 ## Future roadmap
 

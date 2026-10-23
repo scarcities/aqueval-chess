@@ -101,7 +101,7 @@ mod tests {
         assert!(!see(defended, "f3e5", 0));
         assert!(see(defended, "f3e5", -220));
         // Queen moves to a square attacked by a pawn: loses the queen.
-        let hanging = "4k3/8/8/3p4/8/8/4Q3/4K3 w - - 0 1";
+        let hanging = "3k4/8/8/3p4/8/8/4Q3/4K3 w - - 0 1";
         assert!(!see(hanging, "e2c4", 0));
         assert!(see(hanging, "e2e3", 0));
         // X-ray: rook takes pawn, defended by rook, backed by our second rook: wins a pawn.

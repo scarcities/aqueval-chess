@@ -73,7 +73,7 @@ fn test_castle_cannot_through_check() {
 #[test]
 fn test_castle_cannot_out_of_check() {
     // White king on e1 in check by black rook on e8
-    let fen = "k3r3/8/8/8/8/8/8/R3K2R w KQ - 0 1";
+    let fen = "1k2r3/8/8/8/8/8/8/R3K2R w KQ - 0 1";
     let board = Board::from_fen(fen).unwrap();
     let mut moves = MoveList::new();
     board.generate_legal_moves(&mut moves);

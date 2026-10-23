@@ -274,8 +274,8 @@ fn test_adversarial_tactical_positions_bulk_vs_non_bulk_and_divide() {
         ("EP Diagonal Pin (Moving Pawn)", "k6b/8/8/3pP3/8/8/8/K7 w - d6 0 1", 3),
         // EP diagonal pin: captured pawn was shielding King, Black King a8
         ("EP Diagonal Pin (Shielding Pawn)", "k6b/8/8/3Pp3/8/8/8/K7 w - e6 0 1", 3),
-        // Double check: King MUST move, Black King h8
-        ("Double Check", "4r2k/8/8/b7/8/8/8/R2QK2R w KQ - 0 1", 2),
+        // Double check: King MUST move, Black King g8
+        ("Double Check", "4r1k1/8/8/b7/8/8/8/R2QK2R w KQ - 0 1", 2),
         // Castling through check
         ("Castling Through Check", "4k2r/8/8/8/8/8/5r2/R3K2R w KQk - 0 1", 3),
         // Promotion rich position

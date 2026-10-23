@@ -241,6 +241,15 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_side_not_to_move_in_check_rejected() {
+        use crate::board::Board;
+        // Black to move while White's king on f1 is attacked by the queen on h1.
+        assert!(Board::from_fen("8/8/8/8/8/5k2/8/5K1q b - - 0 1").is_err());
+        // Same position with White to move is legal (checkmate).
+        assert!(Board::from_fen("8/8/8/8/8/5k2/8/5K1q w - - 0 1").is_ok());
+    }
+
+    #[test]
     fn test_fen_roundtrip_startpos() {
         let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
         let parsed = parse_fen(fen).unwrap();

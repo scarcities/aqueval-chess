@@ -68,6 +68,11 @@ impl Board {
             zobrist_hash: 0,
             history: Vec::with_capacity(512),
         };
+        // The side not to move must not be in check: the movegen would capture its king.
+        let them = !board.side_to_move;
+        if board.is_square_attacked_by(board.king_square(them), board.side_to_move, board.occupied()) {
+            return Err(ParseFenError::InvalidPiecePlacement);
+        }
         board.zobrist_hash = board.calculate_zobrist();
         Ok(board)
     }

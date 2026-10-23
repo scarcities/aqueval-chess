@@ -4,6 +4,9 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### FEN: reject positions where the side not to move is in check (bench unchanged, 1032928)
+- `Board::from_fen` returns `InvalidPiecePlacement` for them; before, `go` on such a position panicked in the movegen. Three tests used positions of that kind (the opponent's king attacked along an open file) and now use a legal king square with the same idea.
+
 ### Time management: use the soft limit, keep aborted iterations (bench unchanged, 1032928)
 - A new iteration starts while less than the soft limit has elapsed (was half of it); the hard limit still stops the search. When an iteration is aborted, its best move is kept if it already beat the aspiration window. Bench is depth-limited, so the signature does not change.
 

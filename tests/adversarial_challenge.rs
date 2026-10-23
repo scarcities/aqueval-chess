@@ -446,7 +446,7 @@ fn test_double_check_forces_king_move_only() {
     // Black Bishop on a5 gives check along diagonal a5-e1.
     // White has Queen on d1, Rook on h1, Knight on c3, etc.
     // Double check! ONLY King moves are legal.
-    let fen = "4r2k/8/8/b7/8/8/8/R2QK2R w KQ - 0 1";
+    let fen = "4r1k1/8/8/b7/8/8/8/R2QK2R w KQ - 0 1";
     let board = Board::from_fen(fen).unwrap();
     let mut moves = MoveList::new();
     board.generate_legal_moves(&mut moves);

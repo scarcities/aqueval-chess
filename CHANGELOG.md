@@ -4,6 +4,9 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### UCI: `bestmove 0000` without legal moves (bench unchanged)
+- `Move::NULL` prints as `0000` (UCI's null move) instead of `a1a1`, e.g. when `go` is sent in a mate or stalemate position.
+
 ### FEN: reject positions where the side not to move is in check (bench unchanged, 1032928)
 - `Board::from_fen` returns `InvalidPiecePlacement` for them; before, `go` on such a position panicked in the movegen. Three tests used positions of that kind (the opponent's king attacked along an open file) and now use a legal king square with the same idea.
 

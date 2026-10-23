@@ -25,7 +25,7 @@ Status: `todo`, `in progress`, `review`, `done`.
 | P2-03 | Real ponder: on `ponderhit` switch to normal time control instead of moving at once | [LEAD] | todo |
 | P2-04 | PVS + transposition table + quiescence (start of the Phase 2 roadmap in AGENTS.md) | [LEAD] | todo |
 | P2-05 | FEN validation: reject positions where the side not to move is in check (today `go` panics at `src/movegen/attacks.rs:193`) | [LEAD] | done |
-| P2-06 | UCI: print `bestmove 0000` instead of `a1a1` when the side to move has no legal move | [DELEGATE] | todo |
+| P2-06 | UCI: print `bestmove 0000` instead of `a1a1` when the side to move has no legal move | [DELEGATE] | done |
 
 ## Phase 3 — NNUE (prepared, see docs/NNUE.md)
 

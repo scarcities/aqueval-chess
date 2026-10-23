@@ -98,6 +98,10 @@ impl Move {
     }
 
     pub fn to_uci(self) -> String {
+        // UCI's null move, e.g. `bestmove 0000` when the side to move has no legal move.
+        if self == Move::NULL {
+            return "0000".to_string();
+        }
         let from = Square::from_u8(self.from_sq()).to_str();
         let to = Square::from_u8(self.to_sq()).to_str();
         if let Some(promo) = self.promotion_piece() {
@@ -190,6 +194,11 @@ impl fmt::Debug for MoveList {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_null_move_uci() {
+        assert_eq!(Move::NULL.to_uci(), "0000");
+    }
 
     #[test]
     fn test_move_encoding() {

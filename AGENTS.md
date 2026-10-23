@@ -39,7 +39,7 @@ Invariants: no heap allocation in movegen, make/unmake or search recursion; `sha
   2026-10-23 levels picked from 20-game probes (2600: 47.5 %, 2900: 10 %, 3190: 10 %). 2026-10-19 rows: ~2430. 2026-10-17 rows: after steps 1–4 only (~2150). Rerun: `scripts/elo_gauntlet.sh` with `LEVELS="2300 2600"`.
 - **Bench signature:** 1032928
 - **Perft 6 startpos:** see CHANGELOG.md for nps (bulk and non-bulk).
-- **Roadmap:** docs/ROADMAP.md (integration plan). Phase 1 (search, steps 1.0–1.7) done 2026-10-23: all merged except TT buckets (1.2, H0 twice). Next: Phase 2, NNUE gen-0 (datagen ~14 h, then training), waiting to start the datagen run.
+- **Roadmap:** docs/ROADMAP.md (integration plan). Phase 1 (search, steps 1.0–1.7) done 2026-10-23: all merged except TT buckets (1.2, H0 twice). Next: Phase 2, NNUE gen-0 (datagen ~14 h, then training), datagen running since 2026-10-23 07:48.
 
 ## Ideas tried
 

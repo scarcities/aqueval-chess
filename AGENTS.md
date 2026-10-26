@@ -29,6 +29,8 @@ Invariants: no heap allocation in movegen, make/unmake or search recursion; `sha
 
   | Date | Opponent | TC | Games | Score | Elo diff | Implied Quant Elo |
   |---|---|---|---|---|---|---|
+  | 2026-10-26 | SF 17, UCI_Elo 2600 (NNUE gen-0 build) | 10+0.1 | 200 | 163.0 (81.5 %) | +258 ± 57 | ~2857 |
+  | 2026-10-26 | SF 17, UCI_Elo 2900 (NNUE gen-0 build) | 10+0.1 | 200 | 97.5 (48.8 %) | −9 ± 35 | ~2891 |
   | 2026-10-23 | SF 17, UCI_Elo 2300 | 10+0.1 | 200 | 157.0 (78.5 %) | +225 ± 56 | ~2524 |
   | 2026-10-23 | SF 17, UCI_Elo 2600 | 10+0.1 | 200 | 99.0 (49.5 %) | −3 ± 45 | ~2596 |
   | 2026-10-19 | SF 17, UCI_Elo 2300 | 10+0.1 | 200 | 130.5 (65.3 %) | +109 ± 47 | ~2409 |
@@ -36,7 +38,7 @@ Invariants: no heap allocation in movegen, make/unmake or search recursion; `sha
   | 2026-10-17 | SF 17, UCI_Elo 2000 | 10+0.1 | 200 | 110.5 (55.3 %) | +37 ± 46 | ~2036 |
   | 2026-10-17 | SF 17, UCI_Elo 2300 | 10+0.1 | 200 | 86.5 (43.3 %) | −47 ± 44 | ~2252 |
 
-  2026-10-23 levels picked from 20-game probes (2600: 47.5 %, 2900: 10 %, 3190: 10 %). 2026-10-19 rows: ~2430. 2026-10-17 rows: after steps 1–4 only (~2150). Rerun: `scripts/elo_gauntlet.sh` with `LEVELS="2300 2600"`.
+  NNUE gen-0 rows (`--features nnue` build with the gen-0 net, not yet the default build): ~2875; probes 2600: 82.5 %, 2900: 42.5 %, 3190: 17.5 %. 2026-10-23 levels picked from 20-game probes (2600: 47.5 %, 2900: 10 %, 3190: 10 %). 2026-10-19 rows: ~2430. 2026-10-17 rows: after steps 1–4 only (~2150). Rerun: `scripts/elo_gauntlet.sh` with `LEVELS="2300 2600"`.
 - **Bench signature:** 1032928
 - **Perft 6 startpos:** see CHANGELOG.md for nps (bulk and non-bulk).
 - **Roadmap:** docs/ROADMAP.md (integration plan). Phase 1 (search, steps 1.0–1.7) done 2026-10-23: all merged except TT buckets (1.2, H0 twice). Phase 2 NNUE gen-0: datagen 2026-10-23 07:48 → 2026-10-24 02:08 (87.3 M positions), training 40 epochs (paused 2026-10-24 09:02 → 2026-10-26 14:53, resumed from the epoch-22 checkpoint after a reboot), SPRT vs HCE H1 2026-10-26. Next: 2.4, NNUE as the default build plus gauntlet "NNUE gen-0".

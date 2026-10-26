@@ -13,8 +13,9 @@ name = "quant"
 path = "src/main.rs"
 
 [features]
-# NNUE evaluation in the search (the handcrafted eval stays the default build).
-# Embed a net with `EVALFILE=<path> cargo build --release --features nnue`.
+# NNUE evaluation in the search, on by default with the net in `nets/` (see build.rs).
+# Other net: `EVALFILE=<path> cargo build --release`. Handcrafted eval only: `--no-default-features`.
+default = ["nnue"]
 nnue = []
 
 [dependencies]

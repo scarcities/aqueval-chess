@@ -6,7 +6,8 @@ use super::{Accumulator, HIDDEN, QA};
 pub fn has_avx2() -> bool {
     #[cfg(target_arch = "x86_64")]
     {
-        std::is_x86_feature_detected!("avx2")
+        // QUANT_NO_AVX2 forces the scalar kernels, so tests can cover CPUs without AVX2.
+        std::is_x86_feature_detected!("avx2") && std::env::var_os("QUANT_NO_AVX2").is_none()
     }
     #[cfg(not(target_arch = "x86_64"))]
     {

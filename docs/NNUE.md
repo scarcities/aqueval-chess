@@ -101,18 +101,24 @@ position must give the same eval. If the start position is far off, the stm/ntm 
 
 - `src/nnue/`: network, loader, lazy accumulator stack (`NnueState`), SIMD kernels. Always
   compiled and unit-tested (`cargo test`), but only used by the search in `nnue` builds.
+  `nnue` is a default feature since 2026-10-26 (gen-0 net); AVX2 is picked at run time and
+  every kernel has a scalar version (`QUANT_NO_AVX2=1` forces it, `make test-scalar`).
 - `src/search/evaluator.rs`: every make/unmake and static eval in the search goes through
-  `Evaluator`. In the default build it is the HCE and plain make/unmake (bench unchanged,
-  888666). With `--features nnue` and an active net it pushes the move's feature changes
+  `Evaluator`. In `--no-default-features` builds it is the HCE and plain make/unmake. With the
+  `nnue` feature (default) and an active net it pushes the move's feature changes
   before `make_move`, pops after `unmake_move`, and updates accumulators only when a
   position is evaluated (nodes pruned before their static eval pay nothing). Null moves need
   no update. **Rule for new search code: use `ctx.eval.make_move/unmake_move/evaluate`,
   never `board.make_move` or `evaluate` directly.**
-- Build: `make release-nnue EVALFILE=nets/<net>.nnue` (embeds the net) or
-  `cargo build --release --features nnue` plus `setoption name EvalFile value <path>`.
+- Build: `cargo build --release` embeds the net named in `build.rs` (`DEFAULT_NET`);
+  `EVALFILE=<path> cargo build --release` embeds another one, `make release-hce` builds
+  without NNUE. At run time `setoption name EvalFile value <path>` loads another net.
+- Nets live in `nets/` as `quant-gen<N>-<first 8 hex of sha256>.nnue`; CHANGELOG.md says
+  which net each build embeds. At ~400 KB a net is a normal commit; once nets grow past a
+  few MB they go to GitHub Releases or Git LFS instead.
 - UCI (nnue builds): `EvalFile` (default `<embedded>`), `UseNNUE` (default true).
   `eval` prints the HCE eval and the NNUE eval of the current position.
-- Tests: `make test-nnue` runs everything with the feature on; the NNUE unit tests check the
+- Tests: `cargo test` runs everything with the feature on, `make test-hce` without it; the NNUE unit tests check the
   file round trip, the forward pass against an independent reference, colour symmetry,
   incremental updates against full refreshes over random games (castling, en passant,
   promotions), and AVX2 against scalar.

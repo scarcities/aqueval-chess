@@ -4,6 +4,12 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### NNUE gen-0 as the default build (bench 1032928 → 547732)
+- **Net:** `nets/quant-gen0-74884169.nnue` (sha256 `748841698123d80a1cbca77191e64904a35c5529babbc3e0c92bb8c6072108e8`), embedded by `cargo build`. From this entry on, every build embeds this net until a later entry names another one.
+- **Why the bench changes:** the search now evaluates with the net instead of the handcrafted eval, so it visits different nodes. 547732 is the default build; `--no-default-features` (handcrafted eval only) keeps 1032928.
+- **Strength:** SPRT vs HCE main H1, 149.5/152 at 8+0.08; gauntlet vs SF 17 limited ~2875 (HCE ~2560).
+- **Fallback:** AVX2 is detected at run time; without it the scalar kernels run (same results, about half the speed). `QUANT_NO_AVX2=1` forces them; CI runs the tests that way too. `UseNNUE false` switches to the handcrafted eval at run time.
+
 ### UCI: `bestmove 0000` without legal moves (bench unchanged)
 - `Move::NULL` prints as `0000` (UCI's null move) instead of `a1a1`, e.g. when `go` is sent in a mate or stalemate position.
 

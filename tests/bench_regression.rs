@@ -1,6 +1,13 @@
 use std::process::Command;
 use quant::bench::run_bench_with_writer;
 
+/// Bench signature of the default build (NNUE with the net in `nets/`) and of the
+/// handcrafted-eval build (`--no-default-features`).
+#[cfg(feature = "nnue")]
+const SIGNATURE: u64 = 547_732;
+#[cfg(not(feature = "nnue"))]
+const SIGNATURE: u64 = 1_032_928;
+
 #[test]
 fn test_bench_deterministic_signature_consecutive_runs() {
     let mut sink = std::io::sink();
@@ -25,7 +32,7 @@ fn test_bench_default_depth_deterministic() {
     let sig2 = run_bench_with_writer(None, &mut sink);
 
     assert_eq!(sig1, sig2, "Default bench signature must be deterministic");
-    assert_eq!(sig1, 1_032_928, "Phase 1 default bench signature expectation");
+    assert_eq!(sig1, SIGNATURE, "default bench signature");
 }
 
 #[test]
@@ -40,7 +47,7 @@ fn test_bench_cli_binary_execution() {
 
     assert!(output1.status.success());
     let stdout1 = String::from_utf8(output1.stdout).expect("Valid UTF-8");
-    assert!(stdout1.contains("Nodes searched  : 1032928"));
+    assert!(stdout1.contains(&format!("Nodes searched  : {SIGNATURE}")));
     assert!(stdout1.contains("Total time (ms) :"));
     assert!(stdout1.contains("Nodes/second    :"));
 
@@ -52,5 +59,5 @@ fn test_bench_cli_binary_execution() {
 
     assert!(output2.status.success());
     let stdout2 = String::from_utf8(output2.stdout).expect("Valid UTF-8");
-    assert!(stdout2.contains("Nodes searched  : 1032928"));
+    assert!(stdout2.contains(&format!("Nodes searched  : {SIGNATURE}")));
 }

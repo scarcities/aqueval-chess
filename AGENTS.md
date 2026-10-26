@@ -14,7 +14,7 @@ Target machine: the reference machine (Zen+, 6c/12t, AVX2, no AVX-512, slow PEXT
 | `src/search/` | Phase 1 placeholder: iterative-deepening alpha-beta, material eval, soft/hard time limits |
 | `src/uci/` | UCI loop; search runs on its own thread so `stop`/`isready` stay responsive; `go perft N` prints divide |
 | `src/bench/` | Searches the six standard positions to depth 11; total nodes = bench signature |
-| `src/nnue/` | Phase 3 NNUE: (768 → 256)x2 → 1 SCReLU net, loader (bullet quantised.bin layout), lazy accumulator stack, AVX2 kernels picked at run time. Used by the search only in `--features nnue` builds; see docs/NNUE.md |
+| `src/nnue/` | Phase 3 NNUE: (768 → 256)x2 → 1 SCReLU net, loader (bullet quantised.bin layout), lazy accumulator stack, AVX2 kernels picked at run time. On by default (`nnue` feature, net from `nets/` embedded by build.rs); scalar fallback without AVX2; see docs/NNUE.md |
 | `src/search/evaluator.rs` | All make/unmake and static evals in the search go through `Evaluator` (HCE in the default build, NNUE accumulators in nnue builds) |
 | `src/datagen/` | `quant datagen`: self-play training data, `<FEN> \| <cp> \| <result>` per line |
 | `scripts/nnue/train.py` | Quant's own NNUE trainer (PyTorch, CPU or CUDA), data packing, exact integer eval for cross-checks |
@@ -39,9 +39,9 @@ Invariants: no heap allocation in movegen, make/unmake or search recursion; `sha
   | 2026-10-17 | SF 17, UCI_Elo 2300 | 10+0.1 | 200 | 86.5 (43.3 %) | −47 ± 44 | ~2252 |
 
   NNUE gen-0 rows (`--features nnue` build with the gen-0 net, not yet the default build): ~2875; probes 2600: 82.5 %, 2900: 42.5 %, 3190: 17.5 %. 2026-10-23 levels picked from 20-game probes (2600: 47.5 %, 2900: 10 %, 3190: 10 %). 2026-10-19 rows: ~2430. 2026-10-17 rows: after steps 1–4 only (~2150). Rerun: `scripts/elo_gauntlet.sh` with `LEVELS="2300 2600"`.
-- **Bench signature:** 1032928
+- **Bench signature:** 547732 (default build, NNUE gen-0); 1032928 with `--no-default-features` (handcrafted eval)
 - **Perft 6 startpos:** see CHANGELOG.md for nps (bulk and non-bulk).
-- **Roadmap:** docs/ROADMAP.md (integration plan). Phase 1 (search, steps 1.0–1.7) done 2026-10-23: all merged except TT buckets (1.2, H0 twice). Phase 2 NNUE gen-0: datagen 2026-10-23 07:48 → 2026-10-24 02:08 (87.3 M positions), training 40 epochs (paused 2026-10-24 09:02 → 2026-10-26 14:53, resumed from the epoch-22 checkpoint after a reboot), SPRT vs HCE H1 2026-10-26. Next: 2.4, NNUE as the default build plus gauntlet "NNUE gen-0".
+- **Roadmap:** docs/ROADMAP.md (integration plan). Phase 1 (search, steps 1.0–1.7) done 2026-10-23: all merged except TT buckets (1.2, H0 twice). Phase 2 NNUE gen-0: datagen 2026-10-23 07:48 → 2026-10-24 02:08 (87.3 M positions), training 40 epochs (paused 2026-10-24 09:02 → 2026-10-26 14:53, resumed from the epoch-22 checkpoint after a reboot), SPRT vs HCE H1 2026-10-26. NNUE gen-0 became the default build 2026-10-26 (2.4); next: Phase 3 of docs/ROADMAP.md.
 
 ## Ideas tried
 
@@ -125,6 +125,14 @@ Run with `scripts/run_sprt.sh`, one test at a time, fastchess concurrency 10 (2 
 ### Phase 3: NNUE
 
 Merged 2026-10-22 (SPRT [-8, 0] nElo H1, no-op in the default build): inference, search integration behind the `nnue` feature, `quant datagen`, own trainer, netviz loader. Plan, architecture, file format and training steps: docs/NNUE.md.
+
+**Gen-0 net (default since 2026-10-26): `nets/quant-gen0-74884169.nnue`.**
+
+- **Training data provenance:** trained only on positions from Quant's own self-play, scored by Quant's own handcrafted-eval search and labelled with the results of those self-play games. No Stockfish, Leela or other external data, evaluations, nets or tablebases were used anywhere in data generation or training.
+- **Data:** `quant datagen --out ~/tools/nnue-data/hce1 --threads 10 --games 950000 --nodes 5000 --seed 1`, run with the HCE build of `728d90f` (main after Phase 1). 950,000 games, 87,300,646 kept positions (~92 per game), filters and adjudication as in docs/NNUE.md. 2026-10-23 07:48 → 2026-10-24 02:08.
+- **Architecture:** (768 → 256)x2 → 1, SCReLU, quantised as in docs/NNUE.md (QA/QB, bullet quantised.bin layout).
+- **Training:** `scripts/nnue/train.py prepare` then `train --epochs 40 --threads 10 --in-memory` with the defaults of `9f4ee92`: batch 16384, AdamW lr 1e-3 with cosine decay to 1e-5, weight decay 0, wdl 0.25, sigmoid scale as in the script, seed 1, 200,000 positions held out for validation. Final validation loss 0.006517 (epoch 1: 0.007002). CPU only (PyTorch 2.14.1+cpu). Paused after epoch 22 and resumed from `epoch022.pt` after a reboot, so a bit-identical rerun needs the same resume point (the shuffle RNG restarts on resume).
+- **Results:** SPRT vs HCE main [0, 10] nElo H1 (149.5/152, self-play exaggerates); gauntlet ~2875 vs SF 17 limited (table above).
 
 - Decided 2026-10-22: install PyTorch (CPU build, ~200 MB, in a venv) for training. Install when NNUE gen-0 starts (ROADMAP Phase 2), not while an SPRT is running.
 - Data generation: self-play at fixed nodes with randomized openings, adjudication, filtering

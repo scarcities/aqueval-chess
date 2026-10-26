@@ -1,24 +1,29 @@
 export PATH := $(HOME)/.cargo/bin:$(PATH)
 
-.PHONY: all build release release-nnue test test-nnue bench perft clippy clean viz
+.PHONY: all build release release-hce test test-hce test-scalar bench perft clippy clean viz
 
 all: release
 
 build:
 	cargo build
 
+# Default build: NNUE with the net in nets/ (see build.rs); another net with EVALFILE=<path>.
 release:
 	cargo build --release
 
-# NNUE build; embeds a net with `make release-nnue EVALFILE=nets/<net>.nnue`.
-release-nnue:
-	EVALFILE=$(EVALFILE) cargo build --release --features nnue
+# Handcrafted eval only (no net).
+release-hce:
+	cargo build --release --no-default-features
 
 test:
 	cargo test --release
 
-test-nnue:
-	cargo test --release --features nnue
+test-hce:
+	cargo test --release --no-default-features
+
+# NNUE with the scalar kernels, as on CPUs without AVX2.
+test-scalar:
+	QUANT_NO_AVX2=1 cargo test --release
 
 bench: release
 	./target/release/quant bench
@@ -28,7 +33,7 @@ perft: release
 
 clippy:
 	cargo clippy --all-targets -- -D warnings
-	cargo clippy --all-targets --features nnue -- -D warnings
+	cargo clippy --all-targets --no-default-features -- -D warnings
 
 viz:
 	xdg-open tools/netviz/netviz.html

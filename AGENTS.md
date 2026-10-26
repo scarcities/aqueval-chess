@@ -39,7 +39,7 @@ Invariants: no heap allocation in movegen, make/unmake or search recursion; `sha
   2026-10-23 levels picked from 20-game probes (2600: 47.5 %, 2900: 10 %, 3190: 10 %). 2026-10-19 rows: ~2430. 2026-10-17 rows: after steps 1–4 only (~2150). Rerun: `scripts/elo_gauntlet.sh` with `LEVELS="2300 2600"`.
 - **Bench signature:** 1032928
 - **Perft 6 startpos:** see CHANGELOG.md for nps (bulk and non-bulk).
-- **Roadmap:** docs/ROADMAP.md (integration plan). Phase 1 (search, steps 1.0–1.7) done 2026-10-23: all merged except TT buckets (1.2, H0 twice). Next: Phase 2, NNUE gen-0 (datagen ~14 h, then training), datagen running since 2026-10-23 07:48.
+- **Roadmap:** docs/ROADMAP.md (integration plan). Phase 1 (search, steps 1.0–1.7) done 2026-10-23: all merged except TT buckets (1.2, H0 twice). Phase 2 NNUE gen-0: datagen 2026-10-23 07:48 → 2026-10-24 02:08 (87.3 M positions), training 40 epochs (paused 2026-10-24 09:02 → 2026-10-26 14:53, resumed from the epoch-22 checkpoint after a reboot), SPRT vs HCE H1 2026-10-26. Next: 2.4, NNUE as the default build plus gauntlet "NNUE gen-0".
 
 ## Ideas tried
 
@@ -105,6 +105,7 @@ Run with `scripts/run_sprt.sh`, one test at a time, fastchess concurrency 10 (2 
 | Fail-soft search: cutoffs, fail-lows, NMP and qsearch return the best score (enabler, vs pawn correction history) | [−8, 0] nElo | H1 accepted | +26.2 ± 15.5 (nElo +33.0 ± 19.5) | 1222 |
 | Aspiration windows on fail-soft: ±20 from depth 4, widening by half, fail-high re-searched up to two plies shallower (vs fail-soft) | [0, 10] nElo | H1 accepted | +44.4 ± 20.9 (nElo +54.2 ± 25.2) | 732 |
 | Time management: start iterations until the soft limit (was half of it), keep the best move of an aborted iteration, at 20+0.2 (vs aspiration) | [0, 10] nElo | H1 accepted, 0 time losses | +60.6 ± 23.3 (nElo +80.6 ± 30.3) | 504 |
+| NNUE gen-0 (768→256)x2→1 SCReLU, trained on 87.3 M HCE self-play positions (950k games, 5000 nodes), 40 epochs, val loss 0.00652; `--features nnue` build with the net embedded (vs HCE main, time management) | [0, 10] nElo | H1 accepted, 0 time losses | +711 (nElo +1604 ± 55); 149.5/152, self-play exaggerates | 152 |
 
 ## Future roadmap
 

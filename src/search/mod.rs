@@ -1,5 +1,6 @@
 pub mod evaluate;
 pub mod evaluator;
+mod lmr;
 pub mod time;
 pub mod see;
 pub mod tt;
@@ -393,8 +394,7 @@ fn alpha_beta(
         // null-window search (log formula, one ply less at PV nodes).
         let mut reduction = 0;
         if depth >= 3 && i >= 3 && quiet && !in_check && !board.is_in_check() {
-            let r = 0.75 + (depth as f64).ln() * (i as f64).ln() / 2.25;
-            reduction = (r as usize + !improving as usize).saturating_sub(pv_node as usize).min(depth - 2);
+            reduction = (lmr::reduction(depth, i) + !improving as usize).saturating_sub(pv_node as usize).min(depth - 2);
         }
         let score = pvs_child(board, depth - 1, ply + 1, alpha, beta, (i > 0).then_some(reduction), ctx);
         ctx.eval.unmake_move(board, m, &undo);

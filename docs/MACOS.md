@@ -30,7 +30,7 @@ cargo test --release
 cargo test --release --no-default-features
 ```
 
-Both must end without failures (134 tests each on Linux). The first run takes a few minutes
+Both must end without failures (136 tests each on Linux). The first run takes a few minutes
 (perft and the 10k-position cross-check).
 
 ## 4. Run the bench
@@ -52,8 +52,8 @@ cargo build --release --no-default-features
 
 - Check that you are on the commit you expect (`git log -1`) and that CHANGELOG.md names
   `quant-gen0-74884169.nnue` as the current net.
-- If the NNUE bench differs but the handcrafted bench matches, the NNUE scalar path differs:
-  report both numbers.
-- If both differ, the most likely cause is the late move reduction formula, which uses
-  `f64::ln` from the system math library; macOS and Linux may round the last bit differently.
-  Report both numbers and the output of `rustc --version`.
+- If the NNUE bench differs but the handcrafted bench matches, the NNUE scalar path differs
+  from the AVX2 path: report both numbers.
+- If both differ, something platform-dependent reached the search. It should not: the search
+  uses no floating point (late move reductions come from a fixed integer table,
+  `src/search/lmr.rs`, and the net is integer-only). Report both numbers and `rustc --version`.

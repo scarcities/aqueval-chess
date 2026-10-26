@@ -4,6 +4,9 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### Late move reductions from a fixed table (bench unchanged, 547732 / 1032928)
+- `src/search/lmr.rs` holds the reductions as integer thresholds generated once from the old `0.75 + ln d · ln i / 2.25` formula, so no platform's `f64::ln` can change the search and the bench works as a cross-platform checksum. A test checks the table against the formula on x86-64 Linux. That was the only floating point in the search; NPS output and datagen's result field (exactly 0, 0.5 or 1) do not affect it.
+
 ### NNUE gen-0 as the default build (bench 1032928 → 547732)
 - **Net:** `nets/quant-gen0-74884169.nnue` (sha256 `748841698123d80a1cbca77191e64904a35c5529babbc3e0c92bb8c6072108e8`), embedded by `cargo build`. From this entry on, every build embeds this net until a later entry names another one.
 - **Why the bench changes:** the search now evaluates with the net instead of the handcrafted eval, so it visits different nodes. 547732 is the default build; `--no-default-features` (handcrafted eval only) keeps 1032928.

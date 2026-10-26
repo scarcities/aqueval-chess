@@ -21,7 +21,7 @@ Target machine: the reference machine (Zen+, 6c/12t, AVX2, no AVX-512, slow PEXT
 | `tests/` | Perft suites, movegen edge cases, 10k-position shakmaty cross-check, UCI subprocess tests, bench regression |
 | `harness/` | External perft harness that tests the shipped binary over UCI (see `harness/README.md`) |
 
-Invariants: no heap allocation in movegen, make/unmake or search recursion; `shakmaty` is a dev-dependency only (R1). Search code makes and unmakes moves and evaluates only through `ctx.eval` (`Evaluator`), so NNUE accumulators stay in step.
+Invariants: no floating point in the search or eval (bench = cross-platform checksum; LMR uses the integer table in `src/search/lmr.rs`); no heap allocation in movegen, make/unmake or search recursion; `shakmaty` is a dev-dependency only (R1). Search code makes and unmakes moves and evaluates only through `ctx.eval` (`Evaluator`), so NNUE accumulators stay in step.
 
 ## Current status
 

@@ -38,7 +38,7 @@ Status: `todo`, `in progress`, `review`, `done`.
 | P3-05 | Generate 50–100 M HCE positions (after the SPRT queue) | [DELEGATE] | done (87.3 M) |
 | P3-06 | Train the first net, sanity checks, SPRT vs HCE main [0, 10] | [LEAD] | done (gen-0, H1) |
 | P3-08 | Remove the handcrafted eval (`--no-default-features` build, `UseNNUE` option, HCE code and tests) once the second net (gen-1) passes its SPRT against gen-0; keeping two evals costs maintenance on every search change | [LEAD] | todo |
-| P3-09 | Cross-compile check for a non-x86 target (e.g. `aarch64-unknown-linux-gnu`) so the scalar fallback is also proven to build there | [DELEGATE] | todo |
+| P3-09 | Non-x86 build: `cargo check`/`clippy` for `aarch64-apple-darwin` pass (2026-10-26); real run on a Mac per docs/MACOS.md (tests pass, bench 547732) | [DELEGATE] | review (tested on a Mac) |
 | P3-07 | Retune eval-scale-dependent search margins for NNUE | [LEAD] | todo |
 
 ### P2-02 spec (delegate)

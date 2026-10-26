@@ -104,7 +104,8 @@ pub fn update<const A: usize, const S: usize>(
     update_body(dst, src, adds, subs)
 }
 
-#[cfg(test)]
+// AVX2 kernels exist only on x86-64; elsewhere the scalar path is all there is to test.
+#[cfg(all(test, target_arch = "x86_64"))]
 mod tests {
     use super::*;
     use crate::board::zobrist::SplitMix64;
@@ -126,7 +127,6 @@ mod tests {
         for _ in 0..50 {
             let acc = random_acc(&mut rng, 600);
             let w = random_acc(&mut rng, 128);
-            #[cfg(target_arch = "x86_64")]
             assert_eq!(screlu_dot_scalar(&acc, &w), unsafe { screlu_dot_avx2(&acc, &w) });
 
             let (a1, a2, s1, s2) = (random_acc(&mut rng, 300), random_acc(&mut rng, 300), random_acc(&mut rng, 300), random_acc(&mut rng, 300));

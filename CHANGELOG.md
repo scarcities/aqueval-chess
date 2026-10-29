@@ -4,6 +4,9 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### Multicut from the singular search (bench 1004476 → 1027683; handcrafted build 1177704 → 1116769)
+- When the singular search (TT move excluded) still reaches `singular_beta` and `singular_beta ≥ beta`, at least two moves fail high: the node returns `singular_beta` without searching the TT move.
+
 ### Singular extensions (bench 547732 → 1004476; handcrafted build 1032928 → 1177704)
 - When the TT move has a lower-bound or exact entry at least depth − 3 deep (depth ≥ 8, non-mate score, ply < 2 · iteration depth), the other moves are searched at half depth against `tt_score − 2 · depth` with the TT move excluded. If they all fail low, the TT move is extended by one ply. Searches with an excluded move skip TT cutoffs, null move pruning, TT stores and correction-history updates.
 

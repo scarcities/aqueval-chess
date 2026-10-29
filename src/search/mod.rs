@@ -395,6 +395,10 @@ fn alpha_beta(
                 }
                 if v < singular_beta {
                     extension = 1;
+                } else if singular_beta >= beta {
+                    // Multicut: another move also beats beta without the TT move, so this
+                    // node fails high on at least two moves; cut without searching the TT move.
+                    return singular_beta;
                 }
             }
         }

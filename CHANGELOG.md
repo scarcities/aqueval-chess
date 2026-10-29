@@ -4,6 +4,9 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### Singular extensions (bench 547732 → 1004476; handcrafted build 1032928 → 1177704)
+- When the TT move has a lower-bound or exact entry at least depth − 3 deep (depth ≥ 8, non-mate score, ply < 2 · iteration depth), the other moves are searched at half depth against `tt_score − 2 · depth` with the TT move excluded. If they all fail low, the TT move is extended by one ply. Searches with an excluded move skip TT cutoffs, null move pruning, TT stores and correction-history updates.
+
 ### Late move reductions from a fixed table (bench unchanged, 547732 / 1032928)
 - `src/search/lmr.rs` holds the reductions as integer thresholds generated once from the old `0.75 + ln d · ln i / 2.25` formula, so no platform's `f64::ln` can change the search and the bench works as a cross-platform checksum. A test checks the table against the formula on x86-64 Linux. That was the only floating point in the search; NPS output and datagen's result field (exactly 0, 0.5 or 1) do not affect it.
 

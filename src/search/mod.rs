@@ -80,6 +80,8 @@ struct SearchContext<'a> {
     eval: &'a mut Evaluator,
     /// `board.history.len()` at the root: history entries from here on belong to the search path.
     root_history: usize,
+    /// Depth of the current iteration; singular extensions stop at ply 2 · root_depth.
+    root_depth: usize,
 }
 
 const MAX_PLY: usize = 128;
@@ -119,6 +121,8 @@ struct Heuristics {
     cont: Vec<i32>,
     /// `null_at[ply]`: the move made at `ply` was a null move (no two in a row).
     null_at: [bool; MAX_PLY],
+    /// `excluded[ply]`: move skipped at `ply` during a singular-extension search (NULL if none).
+    excluded: [Move; MAX_PLY],
 }
 
 impl Heuristics {
@@ -133,6 +137,7 @@ impl Heuristics {
             corr: vec![0; 2 * CORR_SIZE],
             cont: vec![0; 12 * 64 * 12 * 64],
             null_at: [false; MAX_PLY],
+            excluded: [Move::NULL; MAX_PLY],
         })
     }
 
@@ -274,13 +279,17 @@ fn alpha_beta(
     }
 
     let key = board.zobrist_hash();
+    let excluded = ctx.heur.excluded[ply];
     let mut tt_move = Move::NULL;
-    if let Some(e) = ctx.tt.probe(key, ply) {
+    let tt_entry = ctx.tt.probe(key, ply);
+    if let Some(e) = tt_entry {
         tt_move = e.mv;
         let score = e.score as i32;
         // Cut only at null-window nodes so the PV keeps coming from real search, and not near
         // the 50-move rule, where the stored score may ignore a draw that is now close.
+        // A singular search (excluded move) must search the remaining moves for real.
         if beta - alpha == 1
+            && excluded == Move::NULL
             && board.halfmove_clock < 90
             && e.depth as usize >= depth
             && match e.bound {
@@ -314,6 +323,7 @@ fn alpha_beta(
     // in check, twice in a row, or without pieces (pawn endgames are prone to zugzwang).
     if prunable
         && depth >= 3
+        && excluded == Move::NULL
         && !ctx.heur.null_at[ply - 1]
         && has_non_pawn_material(board)
         && static_eval >= beta
@@ -362,6 +372,32 @@ fn alpha_beta(
     let mut tried_quiets = [Move::NULL; 64];
     let mut quiets_tried = 0;
     for (i, &m) in moves.as_slice().iter().enumerate() {
+        if m == excluded {
+            continue;
+        }
+        // Singular extension: if every other move fails clearly below the TT score in a
+        // shallow search without the TT move, the TT move is the only good one; search it deeper.
+        let mut extension = 0;
+        if let Some(e) = tt_entry.filter(|_| m == tt_move && ply > 0 && excluded == Move::NULL) {
+            let tt_score = e.score as i32;
+            if depth >= 8
+                && ply < 2 * ctx.root_depth
+                && e.depth as usize + 3 >= depth
+                && e.bound != Bound::Upper
+                && tt_score.abs() < MATE_THRESHOLD
+            {
+                let singular_beta = tt_score - 2 * depth as i32;
+                ctx.heur.excluded[ply] = m;
+                let v = alpha_beta(board, (depth - 1) / 2, ply, singular_beta - 1, singular_beta, ctx);
+                ctx.heur.excluded[ply] = Move::NULL;
+                if ctx.stop_flag.load(Ordering::Relaxed) {
+                    return 0;
+                }
+                if v < singular_beta {
+                    extension = 1;
+                }
+            }
+        }
         let quiet = !m.is_capture() && m.promotion_piece().is_none() && !ctx.heur.killers[ply].contains(&m);
         // Late move pruning: at shallow null-window nodes skip quiet moves after the first
         // (3 + depth²) / 2, or 3 + depth² when the position is improving.
@@ -396,7 +432,7 @@ fn alpha_beta(
         if depth >= 3 && i >= 3 && quiet && !in_check && !board.is_in_check() {
             reduction = (lmr::reduction(depth, i) + !improving as usize).saturating_sub(pv_node as usize).min(depth - 2);
         }
-        let score = pvs_child(board, depth - 1, ply + 1, alpha, beta, (i > 0).then_some(reduction), ctx);
+        let score = pvs_child(board, depth - 1 + extension, ply + 1, alpha, beta, (i > 0).then_some(reduction), ctx);
         ctx.eval.unmake_move(board, m, &undo);
 
         if ctx.stop_flag.load(Ordering::Relaxed) {
@@ -415,10 +451,12 @@ fn alpha_beta(
                 }
                 ctx.heur.update_cont(board, ply, m, &tried_quiets[..quiets_tried], depth);
             }
-            if !in_check && !m.is_capture() && score > static_eval {
-                ctx.heur.update_corr(board, static_eval, score, depth);
+            if excluded == Move::NULL {
+                if !in_check && !m.is_capture() && score > static_eval {
+                    ctx.heur.update_corr(board, static_eval, score, depth);
+                }
+                ctx.tt.store(key, m, score, depth as i32, Bound::Lower, ply);
             }
-            ctx.tt.store(key, m, score, depth as i32, Bound::Lower, ply);
             return score;
         }
         best_score = best_score.max(score);
@@ -432,6 +470,10 @@ fn alpha_beta(
         best_score = alpha;
     }
 
+    // A singular search saw only part of the moves: its result must not reach the TT.
+    if excluded != Move::NULL {
+        return best_score;
+    }
     let bound = if best_move == Move::NULL { Bound::Upper } else { Bound::Exact };
     let quiet_best = best_move == Move::NULL || !best_move.is_capture();
     if !in_check && quiet_best && (bound == Bound::Exact || best_score < static_eval) {
@@ -662,6 +704,7 @@ pub fn search(
             heur: &mut heur,
             eval: &mut evaluator,
             root_history,
+            root_depth: current_depth,
         };
 
         // `usable`: the window attempt searched its first move fully without failing low, so

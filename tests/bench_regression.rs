@@ -4,9 +4,9 @@ use quant::bench::run_bench_with_writer;
 /// Bench signature of the default build (NNUE with the net in `nets/`) and of the
 /// handcrafted-eval build (`--no-default-features`).
 #[cfg(feature = "nnue")]
-const SIGNATURE: u64 = 953_960;
+const SIGNATURE: u64 = 992_264;
 #[cfg(not(feature = "nnue"))]
-const SIGNATURE: u64 = 912_599;
+const SIGNATURE: u64 = 912_553;
 
 #[test]
 fn test_bench_deterministic_signature_consecutive_runs() {

@@ -426,7 +426,7 @@ fn alpha_beta(
         if prunable && depth <= 4 && i > 0 && quiet && alpha > -MATE_THRESHOLD && m != counter {
             let hist = ctx.heur.history[board.side_to_move.index()][m.from_sq() as usize][m.to_sq() as usize]
                 + 2 * ctx.heur.cont_score(board, ply, m);
-            if hist < -2000 * depth as i32 {
+            if hist < -1000 * depth as i32 {
                 continue;
             }
         }

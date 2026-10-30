@@ -86,6 +86,7 @@ struct SearchContext<'a> {
 
 const MAX_PLY: usize = 128;
 const CONT_MAX: i32 = 16384;
+const HIST_MAX: i32 = 16384;
 const NO_PIECE: usize = 12;
 const NO_EVAL: i32 = i32::MIN;
 const CORR_SIZE: usize = 16384;
@@ -141,15 +142,20 @@ impl Heuristics {
         })
     }
 
-    /// Records a quiet move that caused a beta cutoff.
-    fn update(&mut self, side: usize, ply: usize, m: Move, depth: usize) {
+    /// Records a quiet move that caused a beta cutoff: killer, history bonus for it and a
+    /// malus for the quiets tried before it.
+    fn update(&mut self, side: usize, ply: usize, m: Move, tried: &[Move], depth: usize) {
         if self.killers[ply][0] != m {
             self.killers[ply][1] = self.killers[ply][0];
             self.killers[ply][0] = m;
         }
-        let h = &mut self.history[side][m.from_sq() as usize][m.to_sq() as usize];
-        // Capped below the killer scores so killers stay ahead of history.
-        *h = (*h + (depth * depth) as i32).min(700_000);
+        let bonus = (16 * depth * depth).min(1200) as i32;
+        for &q in tried {
+            let b = if q == m { bonus } else { -bonus };
+            let h = &mut self.history[side][q.from_sq() as usize][q.to_sq() as usize];
+            // Gravity: entries saturate at ±HIST_MAX, far below the killer scores.
+            *h += b - *h * b.abs() / HIST_MAX;
+        }
     }
 
     /// Slot of the counter move to the previous move, if there was a real previous move.
@@ -449,7 +455,7 @@ fn alpha_beta(
         }
         if score >= beta {
             if !m.is_capture() {
-                ctx.heur.update(board.side_to_move.index(), ply, m, depth);
+                ctx.heur.update(board.side_to_move.index(), ply, m, &tried_quiets[..quiets_tried], depth);
                 if let Some(c) = ctx.heur.counter_slot(board, ply) {
                     *c = m;
                 }

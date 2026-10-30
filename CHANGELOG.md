@@ -4,6 +4,9 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### Butterfly history with gravity and malus (bench 1027683 → 953967; handcrafted build 1116769 → 912599)
+- On a quiet beta cutoff the move gets `min(16 · depth², 1200)` and every quiet tried before it the same as a malus, with gravity (`h += b − h·|b| / 16384`) instead of the old `+depth²` capped at 700,000. Tables are still reset every `go`; keeping them across moves is a separate test.
+
 ### Multicut from the singular search (bench 1004476 → 1027683; handcrafted build 1177704 → 1116769)
 - When the singular search (TT move excluded) still reaches `singular_beta` and `singular_beta ≥ beta`, at least two moves fail high: the node returns `singular_beta` without searching the TT move.
 

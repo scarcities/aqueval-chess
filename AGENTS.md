@@ -115,6 +115,7 @@ Run with `scripts/run_sprt.sh`, one test at a time, fastchess concurrency 10 (2 
 | Double singular extensions only (≤ 6 per path, margin 20, non-PV), the one variation (vs multicut) | [0, 10] nElo | H0 accepted | −14.74 ± 12.85 (nElo −21.16 ± 18.41) | 1368 |
 | Butterfly history with gravity (±16384) and malus for tried quiets, bonus min(16·depth², 1200) (vs multicut) | [0, 10] nElo | H1 accepted | +37.2 ± 17.1 (nElo +55.2 ± 25.2) | 732 |
 | History tables kept across `go` within a game (butterfly and continuation halved, killers cleared; vs gravity + malus) | [0, 10] nElo | H1 accepted | +38.4 ± 17.8 (nElo +54.7 ± 25.1) | 736 |
+| History pruning, depth ≤ 4, butterfly + 2·continuation < −2000·depth (vs history kept across go) | [0, 10] nElo | H0 accepted | −3.1 ± 7.5 (nElo −4.6 ± 11.2) | 3708 |
 
 ## Future roadmap
 

@@ -113,6 +113,7 @@ Run with `scripts/run_sprt.sh`, one test at a time, fastchess concurrency 10 (2 
 | Multicut: return singular_beta when the singular search without the TT move still reaches it and singular_beta ≥ beta (vs singular extensions) | [0, 10] nElo | H1 accepted | +7.3 ± 5.9 (nElo +10.6 ± 8.5) | 6398 |
 | Double (≤ 6 per path, margin 20, non-PV) and negative (TT score ≥ beta) singular extensions, bundled (vs multicut) | [0, 10] nElo | H0 accepted | −13.4 ± 12.4 (nElo −19.1 ± 17.6) | 1500 |
 | Double singular extensions only (≤ 6 per path, margin 20, non-PV), the one variation (vs multicut) | [0, 10] nElo | H0 accepted | −14.74 ± 12.85 (nElo −21.16 ± 18.41) | 1368 |
+| Butterfly history with gravity (±16384) and malus for tried quiets, bonus min(16·depth², 1200) (vs multicut) | [0, 10] nElo | H1 accepted | +37.2 ± 17.1 (nElo +55.2 ± 25.2) | 732 |
 
 ## Future roadmap
 

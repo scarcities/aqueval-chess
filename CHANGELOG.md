@@ -4,6 +4,9 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### History pruning (bench 953967 → 953960; handcrafted build unchanged, 912599)
+- At null-window nodes with depth ≤ 4, quiet moves other than the first and the counter move are skipped when butterfly + 2 · continuation history is below −2000 · depth. Fresh tables rarely get that low, so the bench barely moves; in games the tables persist across moves.
+
 ### History tables kept across moves (bench unchanged, 953967 / 912599)
 - Killers, butterfly, continuation, counter-move and correction tables now live with the TT between `go` commands of a game instead of starting empty each move. At each new `go` butterfly and continuation history are halved and killers cleared. `ucinewgame`, a new Hash size and each datagen game start fresh. Bench searches every position with a fresh TT, so its signature does not change.
 

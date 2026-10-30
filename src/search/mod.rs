@@ -421,6 +421,15 @@ fn alpha_beta(
         if prunable && depth <= 6 && quiet && alpha > -MATE_THRESHOLD && i >= (3 + depth * depth) / (2 - improving as usize) {
             continue;
         }
+        // History pruning: at shallow null-window nodes skip quiet moves whose history says
+        // they keep failing (butterfly + 2 · continuation, as in move ordering).
+        if prunable && depth <= 4 && i > 0 && quiet && alpha > -MATE_THRESHOLD && m != counter {
+            let hist = ctx.heur.history[board.side_to_move.index()][m.from_sq() as usize][m.to_sq() as usize]
+                + 2 * ctx.heur.cont_score(board, ply, m);
+            if hist < -2000 * depth as i32 {
+                continue;
+            }
+        }
         // SEE pruning: at shallow null-window nodes skip moves that lose too much material.
         if prunable && i > 0 && depth <= 6 && alpha > -MATE_THRESHOLD {
             let margin = if m.is_capture() { -100 } else { -50 } * depth as i32;

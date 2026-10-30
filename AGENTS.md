@@ -109,6 +109,7 @@ Run with `scripts/run_sprt.sh`, one test at a time, fastchess concurrency 10 (2 
 | Time management: start iterations until the soft limit (was half of it), keep the best move of an aborted iteration, at 20+0.2 (vs aspiration) | [0, 10] nElo | H1 accepted, 0 time losses | +60.6 ± 23.3 (nElo +80.6 ± 30.3) | 504 |
 | NNUE gen-0 (768→256)x2→1 SCReLU, trained on 87.3 M HCE self-play positions (950k games, 5000 nodes), 40 epochs, val loss 0.00652; `--features nnue` build with the net embedded (vs HCE main, time management) | [0, 10] nElo | H1 accepted, 0 time losses | +711 (nElo +1604 ± 55); 149.5/152, self-play exaggerates | 152 |
 | Singular extensions: TT move searched one ply deeper when the rest fail below tt_score − 2·depth at half depth (depth ≥ 8, vs NNUE gen-0 main) | [0, 10] nElo | H1 accepted | +25.6 ± 14.3 (nElo +35.8 ± 19.9) | 1168 |
+| Multicut: return singular_beta when the singular search without the TT move still reaches it and singular_beta ≥ beta (vs singular extensions) | [0, 10] nElo | H1 accepted | +7.3 ± 5.9 (nElo +10.6 ± 8.5) | 6398 |
 
 ## Future roadmap
 

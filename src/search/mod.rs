@@ -87,6 +87,14 @@ struct SearchContext<'a> {
 const MAX_PLY: usize = 128;
 const CONT_MAX: i32 = 16384;
 const HIST_MAX: i32 = 16384;
+const CAPHIST_MAX: i32 = 16384;
+
+/// (moving piece type, captured piece type) of a capture; en passant captures a pawn.
+fn capture_types(board: &Board, m: Move) -> (usize, usize) {
+    let attacker = board.piece_at(m.from_sq()).map_or(0, |p| p.piece_type.index());
+    let victim = if m.is_en_passant() { 0 } else { board.piece_at(m.to_sq()).map_or(0, |p| p.piece_type.index()) };
+    (attacker, victim)
+}
 const NO_PIECE: usize = 12;
 const NO_EVAL: i32 = i32::MIN;
 const CORR_SIZE: usize = 16384;
@@ -106,6 +114,8 @@ fn pawn_index(board: &Board) -> usize {
 pub(crate) struct Heuristics {
     killers: [[Move; 2]; MAX_PLY],
     history: [[[i32; 64]; 64]; 2],
+    /// Capture history [moving piece type][to][captured piece type], kept in ±CAPHIST_MAX.
+    caphist: [[[i32; 6]; 64]; 6],
     /// Move made at each ply on the current path (NULL for a null move), for counter moves.
     moves_at: [Move; MAX_PLY],
     /// Counter move: the quiet move that last refuted [previous piece (colour·6 + type)][previous to].
@@ -130,6 +140,7 @@ impl Heuristics {
         Box::new(Self {
             killers: [[Move::NULL; 2]; MAX_PLY],
             history: [[[0; 64]; 64]; 2],
+            caphist: [[[0; 6]; 64]; 6],
             moves_at: [Move::NULL; MAX_PLY],
             counter: [[Move::NULL; 64]; 12],
             piece_at_ply: [NO_PIECE; MAX_PLY],
@@ -146,6 +157,7 @@ impl Heuristics {
     fn age(&mut self) {
         self.history.iter_mut().flatten().flatten().for_each(|h| *h /= 2);
         self.cont.iter_mut().for_each(|h| *h /= 2);
+        self.caphist.iter_mut().flatten().flatten().for_each(|h| *h /= 2);
         self.killers = [[Move::NULL; 2]; MAX_PLY];
     }
 
@@ -162,6 +174,23 @@ impl Heuristics {
             let h = &mut self.history[side][q.from_sq() as usize][q.to_sq() as usize];
             // Gravity: entries saturate at ±HIST_MAX, far below the killer scores.
             *h += b - *h * b.abs() / HIST_MAX;
+        }
+    }
+
+    fn caphist_of(&self, board: &Board, m: Move) -> i32 {
+        let (attacker, victim) = capture_types(board, m);
+        self.caphist[attacker][m.to_sq() as usize][victim]
+    }
+
+    /// On any beta cutoff: bonus for the capture that caused it (if it was one), malus for
+    /// every other capture tried before it.
+    fn update_captures(&mut self, board: &Board, best: Move, tried: &[Move], depth: usize) {
+        let bonus = (16 * depth * depth).min(1200) as i32;
+        for &m in tried {
+            let b = if m == best { bonus } else { -bonus };
+            let (attacker, victim) = capture_types(board, m);
+            let h = &mut self.caphist[attacker][m.to_sq() as usize][victim];
+            *h += b - *h * b.abs() / CAPHIST_MAX;
         }
     }
 
@@ -239,8 +268,12 @@ impl Heuristics {
         if m == tt_move {
             i32::MAX
         } else if m.is_capture() {
-            let base = if see_ge(board, m, 0) { 1_000_000 } else { -1_000_000 };
-            base + mvv_lva(board, m)
+            // SEE splits good from bad captures, with capture history shifting the threshold
+            // (±128 cp); within each group, victim value plus capture history.
+            let hist = self.caphist_of(board, m);
+            let base = if see_ge(board, m, -hist / 128) { 1_000_000 } else { -1_000_000 };
+            let (_, victim) = capture_types(board, m);
+            base + 16 * piece_value(PieceType::ALL[victim]) + hist
         } else if m == self.killers[ply][0] {
             900_000
         } else if m == self.killers[ply][1] {
@@ -383,6 +416,8 @@ fn alpha_beta(
     let mut best_score = -MATE_SCORE;
     let pv_node = beta - alpha > 1;
     let mut tried_quiets = [Move::NULL; 64];
+    let mut tried_captures = [Move::NULL; 32];
+    let mut captures_tried = 0;
     let mut quiets_tried = 0;
     for (i, &m) in moves.as_slice().iter().enumerate() {
         if m == excluded {
@@ -460,7 +495,12 @@ fn alpha_beta(
             tried_quiets[quiets_tried] = m;
             quiets_tried += 1;
         }
+        if m.is_capture() && captures_tried < tried_captures.len() {
+            tried_captures[captures_tried] = m;
+            captures_tried += 1;
+        }
         if score >= beta {
+            ctx.heur.update_captures(board, m, &tried_captures[..captures_tried], depth);
             if !m.is_capture() {
                 ctx.heur.update(board.side_to_move.index(), ply, m, &tried_quiets[..quiets_tried], depth);
                 if let Some(c) = ctx.heur.counter_slot(board, ply) {

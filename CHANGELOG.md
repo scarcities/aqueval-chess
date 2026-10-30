@@ -4,6 +4,9 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### Capture history package (bench 953967 → 878514; handcrafted build 912599 → 1128125)
+- Capture history [attacker][to][victim] with gravity (±16384), kept across moves and halved per `go` like the quiet tables. Captures are ordered good/bad by SEE with the threshold shifted by capture history / 128, then by 16 · victim value + capture history. Every beta cutoff (quiet or capture) gives the cutting capture a bonus and every other capture tried before it a malus. Earlier attempts (2026-10-19) only added capture history to MVV-LVA and failed twice.
+
 ### History tables kept across moves (bench unchanged, 953967 / 912599)
 - Killers, butterfly, continuation, counter-move and correction tables now live with the TT between `go` commands of a game instead of starting empty each move. At each new `go` butterfly and continuation history are halved and killers cleared. `ucinewgame`, a new Hash size and each datagen game start fresh. Bench searches every position with a fresh TT, so its signature does not change.
 

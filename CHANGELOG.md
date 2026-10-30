@@ -4,6 +4,9 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### Double and negative extensions (bench 1027683 → 918667; handcrafted build 1116769 → 1201344)
+- Singular extension by two plies outside PV nodes when the singular search ends more than 20 below `singular_beta`, at most six times per path. When the singular search reaches `singular_beta`, multicut does not apply and the TT score is already above beta, the TT move is searched one ply shallower.
+
 ### Multicut from the singular search (bench 1004476 → 1027683; handcrafted build 1177704 → 1116769)
 - When the singular search (TT move excluded) still reaches `singular_beta` and `singular_beta ≥ beta`, at least two moves fail high: the node returns `singular_beta` without searching the TT move.
 

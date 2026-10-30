@@ -123,6 +123,8 @@ struct Heuristics {
     null_at: [bool; MAX_PLY],
     /// `excluded[ply]`: move skipped at `ply` during a singular-extension search (NULL if none).
     excluded: [Move; MAX_PLY],
+    /// `double_ext[ply]`: double extensions on the path to `ply` (capped to keep lines finite).
+    double_ext: [u8; MAX_PLY],
 }
 
 impl Heuristics {
@@ -138,6 +140,7 @@ impl Heuristics {
             cont: vec![0; 12 * 64 * 12 * 64],
             null_at: [false; MAX_PLY],
             excluded: [Move::NULL; MAX_PLY],
+            double_ext: [0; MAX_PLY],
         })
     }
 
@@ -280,6 +283,7 @@ fn alpha_beta(
 
     let key = board.zobrist_hash();
     let excluded = ctx.heur.excluded[ply];
+    ctx.heur.double_ext[ply + 1] = ctx.heur.double_ext[ply];
     let mut tt_move = Move::NULL;
     let tt_entry = ctx.tt.probe(key, ply);
     if let Some(e) = tt_entry {
@@ -377,7 +381,7 @@ fn alpha_beta(
         }
         // Singular extension: if every other move fails clearly below the TT score in a
         // shallow search without the TT move, the TT move is the only good one; search it deeper.
-        let mut extension = 0;
+        let mut extension = 0i32;
         if let Some(e) = tt_entry.filter(|_| m == tt_move && ply > 0 && excluded == Move::NULL) {
             let tt_score = e.score as i32;
             if depth >= 8
@@ -394,11 +398,16 @@ fn alpha_beta(
                     return 0;
                 }
                 if v < singular_beta {
-                    extension = 1;
+                    // Clearly singular outside PV nodes: two plies, at most 6 times per path.
+                    extension = if !pv_node && v < singular_beta - 20 && ctx.heur.double_ext[ply] < 6 { 2 } else { 1 };
                 } else if singular_beta >= beta {
                     // Multicut: another move also beats beta without the TT move, so this
                     // node fails high on at least two moves; cut without searching the TT move.
                     return singular_beta;
+                } else if tt_score >= beta {
+                    // Negative extension: other moves also reach the TT score, and it already
+                    // beats beta, so the TT move need not be searched as deep.
+                    extension = -1;
                 }
             }
         }
@@ -436,7 +445,10 @@ fn alpha_beta(
         if depth >= 3 && i >= 3 && quiet && !in_check && !board.is_in_check() {
             reduction = (lmr::reduction(depth, i) + !improving as usize).saturating_sub(pv_node as usize).min(depth - 2);
         }
-        let score = pvs_child(board, depth - 1 + extension, ply + 1, alpha, beta, (i > 0).then_some(reduction), ctx);
+        ctx.heur.double_ext[ply + 1] += (extension == 2) as u8;
+        let child_depth = (depth as i32 - 1 + extension) as usize;
+        let score = pvs_child(board, child_depth, ply + 1, alpha, beta, (i > 0).then_some(reduction), ctx);
+        ctx.heur.double_ext[ply + 1] = ctx.heur.double_ext[ply];
         ctx.eval.unmake_move(board, m, &undo);
 
         if ctx.stop_flag.load(Ordering::Relaxed) {

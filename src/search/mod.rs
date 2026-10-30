@@ -404,10 +404,6 @@ fn alpha_beta(
                     // Multicut: another move also beats beta without the TT move, so this
                     // node fails high on at least two moves; cut without searching the TT move.
                     return singular_beta;
-                } else if tt_score >= beta {
-                    // Negative extension: other moves also reach the TT score, and it already
-                    // beats beta, so the TT move need not be searched as deep.
-                    extension = -1;
                 }
             }
         }

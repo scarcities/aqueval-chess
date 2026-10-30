@@ -101,9 +101,9 @@ fn pawn_index(board: &Board) -> usize {
     ((w.wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ b.wrapping_mul(0xC2B2_AE3D_27D4_EB4F)) >> 50) as usize
 }
 
-/// Quiet-move ordering data for one search: two killers per ply and butterfly history
-/// indexed by [side][from][to]. Boxed once per `go`, never allocated in the tree.
-struct Heuristics {
+/// Quiet-move ordering data: two killers per ply and butterfly history indexed by
+/// [side][from][to]. Boxed once per game (kept in the TT between `go`s), never allocated in the tree.
+pub(crate) struct Heuristics {
     killers: [[Move; 2]; MAX_PLY],
     history: [[[i32; 64]; 64]; 2],
     /// Move made at each ply on the current path (NULL for a null move), for counter moves.
@@ -116,7 +116,6 @@ struct Heuristics {
     eval_at: [i32; MAX_PLY],
     /// Pawn-structure correction history [side][pawn hash]: learned (search − static eval)
     /// in 1/CORR_GRAIN centipawns, added to the static eval.
-    /// shortcut: reset every `go` with the other heuristics; keep it across moves like the TT once it has passed SPRT.
     corr: Vec<i32>,
     /// Continuation history [prev piece][prev to][piece][to], flat, shared by the 1- and 2-ply lookups.
     cont: Vec<i32>,
@@ -140,6 +139,14 @@ impl Heuristics {
             null_at: [false; MAX_PLY],
             excluded: [Move::NULL; MAX_PLY],
         })
+    }
+
+    /// Start of a new `go` with tables from the previous one: history halves, killers and the
+    /// per-path data restart; counter moves and correction history stay.
+    fn age(&mut self) {
+        self.history.iter_mut().flatten().flatten().for_each(|h| *h /= 2);
+        self.cont.iter_mut().for_each(|h| *h /= 2);
+        self.killers = [[Move::NULL; 2]; MAX_PLY];
     }
 
     /// Records a quiet move that caused a beta cutoff: killer, history bonus for it and a
@@ -639,7 +646,11 @@ pub fn search(
         nodes: 0,
         start_time: Instant::now(),
     };
-    let mut heur = Heuristics::new();
+    // Tables persist in the TT's slot across `go` within a game (ucinewgame clears them).
+    let mut heur = tt.heur.take().map_or_else(Heuristics::new, |mut h| {
+        h.age();
+        h
+    });
     let mut evaluator = Evaluator::new(board);
     let root_history = board.history.len();
 
@@ -661,6 +672,7 @@ pub fn search(
             }
         }
 
+        tt.heur = Some(heur);
         return SearchResult {
             best_move: Move::NULL,
             score,
@@ -824,6 +836,7 @@ pub fn search(
         }
     }
 
+    tt.heur = Some(heur);
     SearchResult {
         best_move,
         score: best_score,

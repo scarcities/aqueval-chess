@@ -4,6 +4,9 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### History tables kept across moves (bench unchanged, 953967 / 912599)
+- Killers, butterfly, continuation, counter-move and correction tables now live with the TT between `go` commands of a game instead of starting empty each move. At each new `go` butterfly and continuation history are halved and killers cleared. `ucinewgame`, a new Hash size and each datagen game start fresh. Bench searches every position with a fresh TT, so its signature does not change.
+
 ### Butterfly history with gravity and malus (bench 1027683 → 953967; handcrafted build 1116769 → 912599)
 - On a quiet beta cutoff the move gets `min(16 · depth², 1200)` and every quiet tried before it the same as a malus, with gravity (`h += b − h·|b| / 16384`) instead of the old `+depth²` capped at 700,000. Tables are still reset every `go`; keeping them across moves is a separate test.
 

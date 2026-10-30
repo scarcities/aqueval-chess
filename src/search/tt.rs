@@ -31,6 +31,9 @@ const EMPTY: TtEntry = TtEntry {
 pub struct TranspositionTable {
     entries: Vec<TtEntry>,
     age: u8,
+    /// Move-ordering and correction tables of the last search, kept with the TT so they live
+    /// exactly as long as one game's hash (cleared by `clear`, fresh per datagen game and bench).
+    pub(crate) heur: Option<Box<crate::search::Heuristics>>,
 }
 
 impl TranspositionTable {
@@ -39,12 +42,14 @@ impl TranspositionTable {
         Self {
             entries: vec![EMPTY; len],
             age: 0,
+            heur: None,
         }
     }
 
     pub fn clear(&mut self) {
         self.entries.fill(EMPTY);
         self.age = 0;
+        self.heur = None;
     }
 
     /// Called once per `go`, so entries from earlier moves lose replacement priority.

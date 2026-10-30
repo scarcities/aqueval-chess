@@ -55,6 +55,7 @@ Invariants: no floating point in the search or eval (bench = cross-platform chec
 | Futility pruning (static eval margin, fail-hard) | Undecided twice under a 4000-game cap (+10, +13); passed the 2026-10-19 retest (+10.2 ± 6.5, 6652 games) and merged. |
 | Internal iterative reductions | Inconclusive at 15,000 games (+2.8 ± 4.4). Per docs/ROADMAP.md not rerun as-is; a depth ≥ 6 variant is on branch `q10c-iir` for a later, improved hypothesis. |
 | TT buckets (4-entry depth/age replacement; 2-entry depth-preferred + always-replace) | Not merged: H0 both (−2.9, +1.9) at 8+0.08 with 16 MB Hash, where the single-slot table rarely fills. Code on `r12-tt`, `r12b-tt`. Retry with longer TC or smaller Hash, or once singular extensions need deep entries to survive. |
+| Double / negative singular extensions | Not merged: bundle −13.4 (H0), double only −14.74 (H0), both on top of singular extensions + multicut with NNUE gen-0. Code on `r33-ext`, `r33b-ext`. Retry with a larger margin or after the history package changes move ordering. |
 | Capture history (gravity table, bonus/malus on capture cutoffs, added to MVV-LVA) | Not merged: −5.7 (/32) and −5.1 (/8), H0 both times on top of SEE ordering. Code on `q5-caphist`, `q5b-caphist`. Retry using it in the SEE threshold / capture pruning rather than only ordering. |
 
 ## SPRT log
@@ -111,6 +112,7 @@ Run with `scripts/run_sprt.sh`, one test at a time, fastchess concurrency 10 (2 
 | Singular extensions: TT move searched one ply deeper when the rest fail below tt_score − 2·depth at half depth (depth ≥ 8, vs NNUE gen-0 main) | [0, 10] nElo | H1 accepted | +25.6 ± 14.3 (nElo +35.8 ± 19.9) | 1168 |
 | Multicut: return singular_beta when the singular search without the TT move still reaches it and singular_beta ≥ beta (vs singular extensions) | [0, 10] nElo | H1 accepted | +7.3 ± 5.9 (nElo +10.6 ± 8.5) | 6398 |
 | Double (≤ 6 per path, margin 20, non-PV) and negative (TT score ≥ beta) singular extensions, bundled (vs multicut) | [0, 10] nElo | H0 accepted | −13.4 ± 12.4 (nElo −19.1 ± 17.6) | 1500 |
+| Double singular extensions only (≤ 6 per path, margin 20, non-PV), the one variation (vs multicut) | [0, 10] nElo | H0 accepted | −14.74 ± 12.85 (nElo −21.16 ± 18.41) | 1368 |
 
 ## Future roadmap
 

@@ -57,6 +57,7 @@ Invariants: no floating point in the search or eval (bench = cross-platform chec
 | TT buckets (4-entry depth/age replacement; 2-entry depth-preferred + always-replace) | Not merged: H0 both (−2.9, +1.9) at 8+0.08 with 16 MB Hash, where the single-slot table rarely fills. Code on `r12-tt`, `r12b-tt`. Retry with longer TC or smaller Hash, or once singular extensions need deep entries to survive. |
 | Double / negative singular extensions | Not merged: bundle −13.4 (H0), double only −14.74 (H0), both on top of singular extensions + multicut with NNUE gen-0. Code on `r33-ext`, `r33b-ext`. Retry with a larger margin or after the history package changes move ordering. |
 | History pruning (quiet moves with butterfly + 2·continuation below −2000·depth / −1000·depth at depth ≤ 4) | Not merged: −3.1 and −15.5, H0 both. Code on `r35-hp`, `r35b-hp`. The looser threshold hurt more; retry only as part of LMR-by-history (3.7), where bad history reduces instead of pruning. |
+| LMR package (3.7: cut nodes, former-PV nodes, history, deeper/shallower re-search, bundled) | Not merged: −1.5, H0 (2026-11-05). Code on `r37-lmr`. Retry the parts singly, starting with history-based reduction, ideally after SPSA (Phase 4). |
 | Capture history (gravity table, bonus/malus on capture cutoffs, added to MVV-LVA) | Not merged: −5.7 (/32) and −5.1 (/8), H0 both times on top of SEE ordering. Code on `q5-caphist`, `q5b-caphist`. Package retry (3.6: SEE threshold shifted by caphist/128, victim + caphist inside good/bad groups, malus on every cutoff): −2.1, H0 (2026-10-30, `r36-caphist`). Retry only for capture pruning in qsearch or after the LMR package. |
 
 ## SPRT log
@@ -119,6 +120,9 @@ Run with `scripts/run_sprt.sh`, one test at a time, fastchess concurrency 10 (2 
 | History pruning, depth ≤ 4, butterfly + 2·continuation < −2000·depth (vs history kept across go) | [0, 10] nElo | H0 accepted | −3.1 ± 7.5 (nElo −4.6 ± 11.2) | 3708 |
 | History pruning at −1000·depth, the one variation (vs history kept across go) | [0, 10] nElo | H0 accepted | −15.5 ± 12.7 (nElo −23.7 ± 19.4) | 1236 |
 | Capture history package: SEE threshold + caphist/128, ordering 16·victim + caphist, malus for every capture tried before a cutoff (vs history kept across go) | [0, 10] nElo | H0 accepted | −2.14 ± 6.97 (nElo −3.15 ± 10.28) | 4390 |
+| LMR package: cut-node flag (+1), PV or exact-TT node (−1), history/8192, deeper/shallower re-search (vs history kept across go) | [0, 10] nElo | H0 accepted; 7 time losses new, 11 base (first SPRT with any; a training job shared the machine) | −1.53 ± 6.61 (nElo −2.23 ± 9.63) | 4998 |
+
+**Stop rule hit 2026-11-05:** 3.5, 3.6 and 3.7 failed in a row; the SPRT queue rests. Next: v1.0 release.
 
 ## Future roadmap
 

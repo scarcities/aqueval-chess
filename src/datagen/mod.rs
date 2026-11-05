@@ -249,7 +249,7 @@ mod tests {
 
     #[test]
     fn short_run_writes_valid_lines() {
-        let dir = std::env::temp_dir().join(format!("quant-datagen-test-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("aqueval-datagen-test-{}", std::process::id()));
         let cfg = DatagenConfig { out_dir: dir.clone(), threads: 2, games: 2, soft_nodes: 300, seed: 3, ..Default::default() };
         run(&cfg).unwrap();
         let mut lines = 0;

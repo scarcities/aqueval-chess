@@ -1,7 +1,7 @@
-use quant::board::fen::{WHITE_OO, WHITE_OOO};
-use quant::board::Board;
-use quant::movegen::types::{Move, MoveList};
-use quant::types::{PieceType, Square};
+use aqueval::board::fen::{WHITE_OO, WHITE_OOO};
+use aqueval::board::Board;
+use aqueval::movegen::types::{Move, MoveList};
+use aqueval::types::{PieceType, Square};
 
 fn perft(board: &mut Board, depth: usize) -> u64 {
     if depth == 0 {

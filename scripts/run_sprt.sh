@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPRT test of a new Quant build against a base build, using fastchess.
+# SPRT test of a new aqueval build against a base build, using fastchess.
 #
 # Install fastchess: https://github.com/Disservin/fastchess
 #   git clone https://github.com/Disservin/fastchess && cd fastchess && make -j

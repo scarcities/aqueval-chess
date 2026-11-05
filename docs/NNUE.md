@@ -2,7 +2,7 @@
 
 Status (2026-10-21): inference, search integration, data generation, a trainer and the
 visualizer are written and tested; no real net is trained yet. The handcrafted eval (HCE)
-stays the default build. Everything here is Quant's own code; outside sources were only read
+stays the default build. Everything here is aqueval chess's own code; outside sources were only read
 for concepts and for bullet's documented file layout (see "Sources").
 
 ## Architecture: (768 → 256)x2 → 1, SCReLU
@@ -102,7 +102,7 @@ position must give the same eval. If the start position is far off, the stm/ntm 
 - `src/nnue/`: network, loader, lazy accumulator stack (`NnueState`), SIMD kernels. Always
   compiled and unit-tested (`cargo test`), but only used by the search in `nnue` builds.
   `nnue` is a default feature since 2026-10-26 (gen-0 net); AVX2 is picked at run time and
-  every kernel has a scalar version (`QUANT_NO_AVX2=1` forces it, `make test-scalar`).
+  every kernel has a scalar version (`AQUEVAL_NO_AVX2=1` forces it, `make test-scalar`).
 - `src/search/evaluator.rs`: every make/unmake and static eval in the search goes through
   `Evaluator`. In `--no-default-features` builds it is the HCE and plain make/unmake. With the
   `nnue` feature (default) and an active net it pushes the move's feature changes
@@ -113,7 +113,7 @@ position must give the same eval. If the start position is far off, the stm/ntm 
 - Build: `cargo build --release` embeds the net named in `build.rs` (`DEFAULT_NET`);
   `EVALFILE=<path> cargo build --release` embeds another one, `make release-hce` builds
   without NNUE. At run time `setoption name EvalFile value <path>` loads another net.
-- Nets live in `nets/` as `quant-gen<N>-<first 8 hex of sha256>.nnue`; CHANGELOG.md says
+- Nets live in `nets/` as `aqueval-gen<N>-<first 8 hex of sha256>.nnue`; CHANGELOG.md says
   which net each build embeds. At ~400 KB a net is a normal commit; once nets grow past a
   few MB they go to GitHub Releases or Git LFS instead.
 - UCI (nnue builds): `EvalFile` (default `<embedded>`), `UseNNUE` (default true).
@@ -126,7 +126,7 @@ position must give the same eval. If the start position is far off, the stm/ntm 
 ## Data generation
 
 ```
-quant datagen --out data/hce1 --threads 10 --games 600000 --nodes 5000 --seed 1
+aqueval datagen --out data/hce1 --threads 10 --games 600000 --nodes 5000 --seed 1
 ```
 
 - 8–9 random plies from the start position; openings whose first search is beyond ±1000 cp
@@ -148,7 +148,7 @@ from the previous net.
 
 ## Training
 
-### A. Quant's trainer (`scripts/nnue/train.py`, CPU or CUDA)
+### A. aqueval chess's trainer (`scripts/nnue/train.py`, CPU or CUDA)
 
 Needs numpy and torch. Without an NVIDIA GPU install the CPU build in a venv
 (`pip install torch --index-url https://download.pytorch.org/whl/cpu`, ~200 MB); the plain
@@ -202,7 +202,7 @@ bullet needs CUDA, ROCm or Metal. If the machine has a supported GPU, it trains 
 
 1. Train net N on the data so far.
 2. SPRT net N vs net N−1 (or the HCE for N = 1); keep it only if it passes.
-3. Generate new data with net N (`quant datagen --evalfile nets/N.nnue`), add it to the
+3. Generate new data with net N (`aqueval datagen --evalfile nets/N.nnue`), add it to the
    pool (drop the oldest HCE data once there is enough net data), retrain.
 
 ## Sources

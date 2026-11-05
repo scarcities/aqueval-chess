@@ -1,23 +1,23 @@
 use std::env;
 use std::process;
-use quant::board::Board;
-use quant::perft::{format_perft_divide, perft_divide, run_perft_timed};
+use aqueval::board::Board;
+use aqueval::perft::{format_perft_divide, perft_divide, run_perft_timed};
 
 fn print_usage() {
-    println!("Quant Chess Engine v1.0.0");
+    println!("aqueval chess v1.0.0");
     println!("Usage:");
-    println!("  quant                                 # Starts interactive UCI loop");
-    println!("  quant bench [depth]                   # Runs deterministic benchmark suite");
-    println!("  quant perft <depth> [fen] [--divide]  # Runs perft leaf node counting");
-    println!("  quant divide <depth> [fen]            # Runs perft divide breakdown");
-    println!("  quant datagen [--out DIR] [--threads N] [--games N] [--nodes N] [--seed N]");
+    println!("  aqueval                                 # Starts interactive UCI loop");
+    println!("  aqueval bench [depth]                   # Runs deterministic benchmark suite");
+    println!("  aqueval perft <depth> [fen] [--divide]  # Runs perft leaf node counting");
+    println!("  aqueval divide <depth> [fen]            # Runs perft divide breakdown");
+    println!("  aqueval datagen [--out DIR] [--threads N] [--games N] [--nodes N] [--seed N]");
     println!("                [--random-plies N] [--hash MB] [--evalfile NET]");
     println!("                                        # Self-play training data (docs/NNUE.md)");
 }
 
-/// `quant datagen ...`: parses `--name value` pairs into a config and runs data generation.
+/// `aqueval datagen ...`: parses `--name value` pairs into a config and runs data generation.
 fn run_datagen(args: &[String]) {
-    let mut cfg = quant::datagen::DatagenConfig::default();
+    let mut cfg = aqueval::datagen::DatagenConfig::default();
     let mut it = args.iter();
     while let Some(flag) = it.next() {
         let Some(value) = it.next() else {
@@ -43,7 +43,7 @@ fn run_datagen(args: &[String]) {
                     eprintln!("Error: --evalfile needs a build with --features nnue");
                     process::exit(1);
                 }
-                if let Err(e) = quant::nnue::load_eval_file(value) {
+                if let Err(e) = aqueval::nnue::load_eval_file(value) {
                     eprintln!("Error: {e}");
                     process::exit(1);
                 }
@@ -55,9 +55,9 @@ fn run_datagen(args: &[String]) {
             }
         }
     }
-    let eval = if quant::nnue::active().is_some() && cfg!(feature = "nnue") { "NNUE" } else { "HCE" };
+    let eval = if aqueval::nnue::active().is_some() && cfg!(feature = "nnue") { "NNUE" } else { "HCE" };
     println!("datagen eval: {eval}");
-    if let Err(e) = quant::datagen::run(&cfg) {
+    if let Err(e) = aqueval::datagen::run(&cfg) {
         eprintln!("Error: datagen failed: {e}");
         process::exit(1);
     }
@@ -68,13 +68,13 @@ fn main() {
 
     // Default with no arguments: enter UCI protocol loop
     if args.len() < 2 {
-        quant::uci::run_uci_loop_stdio();
+        aqueval::uci::run_uci_loop_stdio();
         return;
     }
 
     match args[1].as_str() {
         "uci" => {
-            quant::uci::run_uci_loop_stdio();
+            aqueval::uci::run_uci_loop_stdio();
         }
         "bench" => {
             let depth: Option<usize> = if args.len() >= 3 {
@@ -88,7 +88,7 @@ fn main() {
             } else {
                 None
             };
-            quant::bench::run_bench(depth);
+            aqueval::bench::run_bench(depth);
         }
         "perft" => {
             if args.len() < 3 {
@@ -123,7 +123,7 @@ fn main() {
             }
 
             println!("========================================");
-            println!("Quant Perft — Depth {}", depth);
+            println!("aqueval perft — depth {}", depth);
             println!("FEN: {}", board.to_fen());
             println!("========================================");
 

@@ -1,5 +1,5 @@
 use std::process::Command;
-use quant::bench::run_bench_with_writer;
+use aqueval::bench::run_bench_with_writer;
 
 /// Bench signature of the default build (NNUE with the net in `nets/`) and of the
 /// handcrafted-eval build (`--no-default-features`).
@@ -37,13 +37,13 @@ fn test_bench_default_depth_deterministic() {
 
 #[test]
 fn test_bench_cli_binary_execution() {
-    let bin_path = env!("CARGO_BIN_EXE_quant");
+    let bin_path = env!("CARGO_BIN_EXE_aqueval");
 
-    // Execute `quant bench`
+    // Execute `aqueval bench`
     let output1 = Command::new(bin_path)
         .arg("bench")
         .output()
-        .expect("Failed to execute quant bench");
+        .expect("Failed to execute aqueval bench");
 
     assert!(output1.status.success());
     let stdout1 = String::from_utf8(output1.stdout).expect("Valid UTF-8");
@@ -51,11 +51,11 @@ fn test_bench_cli_binary_execution() {
     assert!(stdout1.contains("Total time (ms) :"));
     assert!(stdout1.contains("Nodes/second    :"));
 
-    // Execute `quant bench` a second time
+    // Execute `aqueval bench` a second time
     let output2 = Command::new(bin_path)
         .arg("bench")
         .output()
-        .expect("Failed to execute quant bench");
+        .expect("Failed to execute aqueval bench");
 
     assert!(output2.status.success());
     let stdout2 = String::from_utf8(output2.stdout).expect("Valid UTF-8");

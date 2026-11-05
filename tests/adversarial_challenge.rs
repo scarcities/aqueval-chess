@@ -1,7 +1,7 @@
-use quant::board::fen::{BLACK_OO, BLACK_OOO, WHITE_OO, WHITE_OOO};
-use quant::board::Board;
-use quant::movegen::types::{Move, MoveList};
-use quant::types::Square;
+use aqueval::board::fen::{BLACK_OO, BLACK_OOO, WHITE_OO, WHITE_OOO};
+use aqueval::board::Board;
+use aqueval::movegen::types::{Move, MoveList};
+use aqueval::types::Square;
 
 // Helper: check if a specific move exists in MoveList
 fn has_move(moves: &MoveList, from: Square, to: Square) -> bool {

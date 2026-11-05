@@ -10,10 +10,10 @@ On a node-count mismatch it bisects with perft divide against a reference
 Stockfish) down to the exact position and move that is wrong.
 
 Examples:
-    python3 harness/perft.py --engine target/release/quant
-    python3 harness/perft.py --engine target/release/quant --max-nodes 0      # full suite
-    python3 harness/perft.py --engine target/release/quant --only kiwipete
-    python3 harness/perft.py --engine target/release/quant --reference /usr/bin/stockfish
+    python3 harness/perft.py --engine target/release/aqueval
+    python3 harness/perft.py --engine target/release/aqueval --max-nodes 0      # full suite
+    python3 harness/perft.py --engine target/release/aqueval --only kiwipete
+    python3 harness/perft.py --engine target/release/aqueval --reference /usr/bin/stockfish
     python3 harness/perft.py --verify-suite        # check the suite file itself
     python3 harness/perft.py --self-test           # check the harness itself
 

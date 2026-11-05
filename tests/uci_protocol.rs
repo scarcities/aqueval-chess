@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-use quant::uci::run_uci;
+use aqueval::uci::run_uci;
 
 /// Helper to run synchronous UCI commands in-process with a mock reader and writer.
 fn run_uci_in_process(input: &str) -> String {
@@ -24,12 +24,12 @@ struct UciSession {
 
 impl UciSession {
     fn start() -> Self {
-        let bin_path = env!("CARGO_BIN_EXE_quant");
+        let bin_path = env!("CARGO_BIN_EXE_aqueval");
         let mut child = Command::new(bin_path)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()
-            .expect("Failed to start quant binary");
+            .expect("Failed to start aqueval binary");
 
         let stdin = child.stdin.take().expect("Failed to open stdin");
         let stdout = child.stdout.take().expect("Failed to open stdout");
@@ -83,7 +83,7 @@ impl UciSession {
 #[test]
 fn test_uci_handshake() {
     let out = run_uci_in_process("uci\nquit\n");
-    assert!(out.contains("id name Quant 1.0.0"), "Missing engine name: {out}");
+    assert!(out.contains("id name aqueval 1.0.0"), "Missing engine name: {out}");
     assert!(out.contains("id author Deniz"), "Missing author: {out}");
     assert!(out.contains("option name Hash"), "Missing Hash option: {out}");
     assert!(out.contains("option name Threads"), "Missing Threads option: {out}");

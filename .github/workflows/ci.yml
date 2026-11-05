@@ -13,8 +13,8 @@ jobs:
       - run: cargo build --release
       - run: cargo test --release
       - run: cargo test --release --no-default-features
-      - run: QUANT_NO_AVX2=1 cargo test --release
+      - run: AQUEVAL_NO_AVX2=1 cargo test --release
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo clippy --all-targets --no-default-features -- -D warnings
       - name: Bench
-        run: ./target/release/quant bench
+        run: ./target/release/aqueval bench

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Temporary UCI front end for an engine that only has a command-line perft.
 
-Until Quant speaks UCI, this lets the harness test its move generator through
-`quant divide <depth> <fen>`:
+Until aqueval speaks UCI, this lets the harness test its move generator through
+`aqueval divide <depth> <fen>`:
 
-    python3 harness/perft.py --engine "python3 harness/cli_shim.py target/release/quant"
+    python3 harness/perft.py --engine "python3 harness/cli_shim.py target/release/aqueval"
 
 `position ... moves ...` is resolved to a FEN with refgen.py before calling the
 engine, so this does NOT test the engine's own `moves` handling; once the

@@ -1,6 +1,6 @@
-# AGENTS.md — Quant
+# AGENTS.md — aqueval chess
 
-Living document for anyone (human or agent) working on Quant, an original UCI chess engine in Rust.
+Living document for anyone (human or agent) working on aqueval chess, an original UCI chess engine in Rust.
 Reference machine: 6 cores / 12 threads, AVX2, no AVX-512, slow (microcoded) PEXT, 32 GB RAM.
 
 ## Architecture
@@ -16,8 +16,8 @@ Reference machine: 6 cores / 12 threads, AVX2, no AVX-512, slow (microcoded) PEX
 | `src/bench/` | Searches the six standard positions to depth 11; total nodes = bench signature |
 | `src/nnue/` | NNUE: (768 → 256)x2 → 1 SCReLU net, loader (bullet quantised.bin layout), lazy accumulator stack, AVX2 kernels picked at run time. On by default (`nnue` feature, net from `nets/` embedded by build.rs); scalar fallback without AVX2; see docs/NNUE.md |
 | `src/search/evaluator.rs` | All make/unmake and static evals in the search go through `Evaluator` (HCE in the default build, NNUE accumulators in nnue builds) |
-| `src/datagen/` | `quant datagen`: self-play training data, `<FEN> \| <cp> \| <result>` per line |
-| `scripts/nnue/train.py` | Quant's own NNUE trainer (PyTorch, CPU or CUDA), data packing, exact integer eval for cross-checks |
+| `src/datagen/` | `aqueval datagen`: self-play training data, `<FEN> \| <cp> \| <result>` per line |
+| `scripts/nnue/train.py` | aqueval chess's own NNUE trainer (PyTorch, CPU or CUDA), data packing, exact integer eval for cross-checks |
 | `tests/` | Perft suites, movegen edge cases, 10k-position shakmaty cross-check, UCI subprocess tests, bench regression |
 | `harness/` | External perft harness that tests the shipped binary over UCI (see `harness/README.md`) |
 
@@ -27,7 +27,7 @@ Invariants: no floating point in the search or eval (bench = cross-platform chec
 
 - **Elo estimate (vs limited Stockfish):** ~2980, estimate against Stockfish 17 with UCI_Elo 2900 at 60+0.6 over 1000 games, not an official rating (2026-11-05, v1.0 = main `fa926fa`, on a cloud server with 16 dedicated vCPUs; 0 crashes, time losses or illegal moves). Earlier: ~2875 (2026-10-26, NNUE gen-0 before the Phase 3 search changes), ~2560 (2026-10-23, handcrafted eval after docs/ROADMAP.md Phase 1). Approximation against Stockfish 17 with `UCI_LimitStrength`, not a CCRL rating; SF's Elo scale is calibrated at longer time controls, so levels disagree somewhat (here by ~70).
 
-  | Date | Opponent | TC | Games | Score | Elo diff | Implied Quant Elo |
+  | Date | Opponent | TC | Games | Score | Elo diff | Implied aqueval chess Elo |
   |---|---|---|---|---|---|---|
   | 2026-11-05 | SF 17, UCI_Elo 2900 (v1.0, `fa926fa`) | 60+0.6 | 1000 | 613.5 (61.4 %) | +80 ± 18 | ~2980 |
   | 2026-10-26 | SF 17, UCI_Elo 2600 (NNUE gen-0 build) | 10+0.1 | 200 | 163.0 (81.5 %) | +258 ± 57 | ~2857 |
@@ -131,12 +131,12 @@ The step-by-step plan is docs/ROADMAP.md. Done so far: its Phases 1–2 and Phas
 
 ### NNUE
 
-Merged 2026-10-22 (SPRT [-8, 0] nElo H1, no-op in the default build): inference, search integration behind the `nnue` feature, `quant datagen`, own trainer, netviz loader. Plan, architecture, file format and training steps: docs/NNUE.md.
+Merged 2026-10-22 (SPRT [-8, 0] nElo H1, no-op in the default build): inference, search integration behind the `nnue` feature, `aqueval datagen`, own trainer, netviz loader. Plan, architecture, file format and training steps: docs/NNUE.md.
 
-**Gen-0 net (default since 2026-10-26): `nets/quant-gen0-74884169.nnue`.**
+**Gen-0 net (default since 2026-10-26): `nets/aqueval-gen0-74884169.nnue`.**
 
-- **Training data provenance:** trained only on positions from Quant's own self-play, scored by Quant's own handcrafted-eval search and labelled with the results of those self-play games. No Stockfish, Leela or other external data, evaluations, nets or tablebases were used anywhere in data generation or training.
-- **Data:** `quant datagen --out ~/tools/nnue-data/hce1 --threads 10 --games 950000 --nodes 5000 --seed 1`, run with the HCE build of `728d90f` (main after Phase 1). 950,000 games, 87,300,646 kept positions (~92 per game), filters and adjudication as in docs/NNUE.md. 2026-10-23 07:48 → 2026-10-24 02:08.
+- **Training data provenance:** trained only on positions from aqueval chess's own self-play, scored by aqueval chess's own handcrafted-eval search and labelled with the results of those self-play games. No Stockfish, Leela or other external data, evaluations, nets or tablebases were used anywhere in data generation or training.
+- **Data:** `quant datagen --out ~/tools/nnue-data/hce1 --threads 10 --games 950000 --nodes 5000 --seed 1` (binary then named quant), run with the HCE build of `728d90f` (main after Phase 1). 950,000 games, 87,300,646 kept positions (~92 per game), filters and adjudication as in docs/NNUE.md. 2026-10-23 07:48 → 2026-10-24 02:08.
 - **Architecture:** (768 → 256)x2 → 1, SCReLU, quantised as in docs/NNUE.md (QA/QB, bullet quantised.bin layout).
 - **Training:** `scripts/nnue/train.py prepare` then `train --epochs 40 --threads 10 --in-memory` with the defaults of `9f4ee92`: batch 16384, AdamW lr 1e-3 with cosine decay to 1e-5, weight decay 0, wdl 0.25, sigmoid scale as in the script, seed 1, 200,000 positions held out for validation. Final validation loss 0.006517 (epoch 1: 0.007002). CPU only (PyTorch 2.14.1+cpu). Paused after epoch 22 and resumed from `epoch022.pt` after a reboot, so a bit-identical rerun needs the same resume point (the shuffle RNG restarts on resume).
 - **Results:** SPRT vs HCE main [0, 10] nElo H1 (149.5/152, self-play exaggerates); gauntlet ~2875 vs SF 17 limited (table above).

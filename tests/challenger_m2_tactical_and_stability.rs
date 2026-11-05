@@ -1,7 +1,7 @@
-use quant::board::Board;
-use quant::movegen::types::MoveList;
-use quant::perft::{perft, perft_divide, perft_no_bulk};
-use quant::types::PieceType;
+use aqueval::board::Board;
+use aqueval::movegen::types::MoveList;
+use aqueval::perft::{perft, perft_divide, perft_no_bulk};
+use aqueval::types::PieceType;
 use shakmaty::fen::Fen;
 use shakmaty::uci::UciMove;
 use shakmaty::{CastlingMode, Chess, Position};
@@ -92,26 +92,26 @@ fn perft_shakmaty(pos: &Chess, depth: usize) -> u64 {
     nodes
 }
 
-// Helper to assert Quant perft matches Shakmaty perft on legal positions
+// Helper to assert aqueval perft matches Shakmaty perft on legal positions
 fn assert_perft_matches_oracle(fen: &str, depth: usize, desc: &str) {
-    let mut board = Board::from_fen(fen).expect("valid FEN for Quant");
+    let mut board = Board::from_fen(fen).expect("valid FEN for aqueval");
     let parsed_fen: Fen = fen.parse().expect("valid FEN for Shakmaty");
     let shak_pos: Chess = parsed_fen
         .into_position(CastlingMode::Standard)
         .expect("legal position for Shakmaty");
 
-    let quant_nodes = perft(&mut board, depth);
+    let aqueval_nodes = perft(&mut board, depth);
     let shak_nodes = perft_shakmaty(&shak_pos, depth);
 
     assert_eq!(
-        quant_nodes, shak_nodes,
-        "Perft mismatch on [{desc}] at depth {depth}: Quant={quant_nodes}, Oracle={shak_nodes}"
+        aqueval_nodes, shak_nodes,
+        "Perft mismatch on [{desc}] at depth {depth}: aqueval={aqueval_nodes}, Oracle={shak_nodes}"
     );
 
     // Also assert non-bulk matches bulk
     let non_bulk_nodes = perft_no_bulk(&mut board, depth);
     assert_eq!(
-        quant_nodes, non_bulk_nodes,
+        aqueval_nodes, non_bulk_nodes,
         "Bulk vs Non-Bulk mismatch on [{desc}] at depth {depth}"
     );
 
@@ -119,7 +119,7 @@ fn assert_perft_matches_oracle(fen: &str, depth: usize, desc: &str) {
     let divide_res = perft_divide(&mut board, depth);
     let divide_sum: u64 = divide_res.iter().map(|(_, n)| *n).sum();
     assert_eq!(
-        quant_nodes, divide_sum,
+        aqueval_nodes, divide_sum,
         "Divide sum mismatch on [{desc}] at depth {depth}"
     );
 
@@ -141,7 +141,7 @@ fn assert_synthetic_tactical_position(
     max_depth: usize,
     desc: &str,
 ) {
-    let mut board = Board::from_fen(fen).expect("valid FEN for Quant");
+    let mut board = Board::from_fen(fen).expect("valid FEN for aqueval");
     let mut move_list = MoveList::new();
     board.generate_legal_moves(&mut move_list);
 
@@ -606,7 +606,7 @@ fn test_adversarial_random_walk_perft_and_stability_cross_check() {
 
     for &start_fen in &test_seeds {
         for _game in 0..25 {
-            let mut quant_board = Board::from_fen(start_fen).unwrap();
+            let mut aqueval_board = Board::from_fen(start_fen).unwrap();
             let parsed_fen: Fen = start_fen.parse().unwrap();
             let mut shak_pos: Chess = parsed_fen
                 .into_position(CastlingMode::Standard)
@@ -616,10 +616,10 @@ fn test_adversarial_random_walk_perft_and_stability_cross_check() {
                 total_positions_checked += 1;
 
                 // 1. Move generation equality check
-                let mut quant_moves = MoveList::new();
-                quant_board.generate_legal_moves(&mut quant_moves);
+                let mut aqueval_moves = MoveList::new();
+                aqueval_board.generate_legal_moves(&mut aqueval_moves);
 
-                let quant_set: BTreeSet<String> = quant_moves.iter().map(|m| m.to_uci()).collect();
+                let aqueval_set: BTreeSet<String> = aqueval_moves.iter().map(|m| m.to_uci()).collect();
                 let shak_set: BTreeSet<String> = shak_pos
                     .legal_moves()
                     .iter()
@@ -627,19 +627,19 @@ fn test_adversarial_random_walk_perft_and_stability_cross_check() {
                     .collect();
 
                 assert_eq!(
-                    quant_set, shak_set,
+                    aqueval_set, shak_set,
                     "Move generation mismatch at FEN: {}",
-                    quant_board.to_fen()
+                    aqueval_board.to_fen()
                 );
 
-                if quant_moves.is_empty() {
+                if aqueval_moves.is_empty() {
                     break;
                 }
 
                 // 2. Board stability during and after perft and perft_divide
                 if total_positions_checked % 10 == 0 {
                     assert_board_stability_after_operation(
-                        &mut quant_board,
+                        &mut aqueval_board,
                         "Random Walk Perft D2 Stability",
                         |b| {
                             let q_d2 = perft(b, 2);
@@ -649,7 +649,7 @@ fn test_adversarial_random_walk_perft_and_stability_cross_check() {
                     );
 
                     assert_board_stability_after_operation(
-                        &mut quant_board,
+                        &mut aqueval_board,
                         "Random Walk Perft Divide D2 Stability",
                         |b| {
                             let div = perft_divide(b, 2);
@@ -661,11 +661,11 @@ fn test_adversarial_random_walk_perft_and_stability_cross_check() {
                 }
 
                 // 3. Play random move
-                let idx = (rng.next_u32() as usize) % quant_moves.len();
-                let chosen_m = quant_moves[idx];
+                let idx = (rng.next_u32() as usize) % aqueval_moves.len();
+                let chosen_m = aqueval_moves[idx];
                 let chosen_uci = chosen_m.to_uci();
 
-                quant_board.make_move(chosen_m);
+                aqueval_board.make_move(chosen_m);
 
                 let shak_uci: UciMove = chosen_uci.parse().unwrap();
                 let shak_m = shak_uci.to_move(&shak_pos).unwrap();

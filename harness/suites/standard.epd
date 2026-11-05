@@ -1,4 +1,4 @@
-# Perft suite for the Quant UCI harness.
+# Perft suite for the aqueval UCI harness.
 # Format: <FEN> ;D<depth> <nodes> ;D<depth> <nodes> ...
 # A "# name" comment line names the position that follows it.
 # Sources: Chess Programming Wiki "Perft Results" (positions 1-6) and the

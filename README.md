@@ -1,13 +1,13 @@
-# Quant
+# aqueval chess
 
-A UCI-compatible chess engine written in Rust (edition 2021). Quant combines legal bitboard move generation, modern game-tree search, and NNUE evaluation. Built for local play, benchmarking, and engine development.
+A UCI-compatible chess engine written in Rust (edition 2021). aqueval chess combines legal bitboard move generation, modern game-tree search, and NNUE evaluation. Built for local play, benchmarking, and engine development.
 
 - **Strength:** ~2980 Elo, an estimate against Stockfish 17 with UCI_Elo 2900 at 60+0.6 over 1000 games, not an official rating.
 - **Platforms:** Linux and Windows (x86-64), macOS (Apple Silicon). AVX2 is detected at run time; CPUs without it use scalar inference with identical results at about half the speed.
 
 ## Download
 
-Prebuilt binaries for Linux, Windows and macOS are on the [releases page](https://github.com/scarcities/quant/releases). Add the binary to a UCI chess GUI such as Cute Chess, Arena, En Croissant or BanksiaGUI.
+Prebuilt binaries for Linux, Windows and macOS are on the [releases page](https://github.com/scarcities/aqueval/releases). Add the binary to a UCI chess GUI such as Cute Chess, Arena, En Croissant or BanksiaGUI.
 
 ## Layout
 
@@ -34,7 +34,7 @@ Requirements: a current stable Rust toolchain with Cargo.
 ```bash
 cargo build --release
 cargo test --release
-./target/release/quant
+./target/release/aqueval
 ```
 
 The executable starts in **UCI mode**. In its terminal session, try:
@@ -47,7 +47,7 @@ go depth 8
 quit
 ```
 
-You can also connect `target/release/quant` to a UCI-compatible chess GUI.
+You can also connect `target/release/aqueval` to a UCI-compatible chess GUI.
 
 ## UCI options
 
@@ -62,10 +62,10 @@ You can also connect `target/release/quant` to a UCI-compatible chess GUI.
 ## Commands
 
 ```bash
-./target/release/quant bench            # deterministic search benchmark
-./target/release/quant perft 6          # perft from the initial position
-./target/release/quant divide 4         # per-move perft breakdown
-./target/release/quant perft 4 "<FEN>"  # perft from a custom position
+./target/release/aqueval bench            # deterministic search benchmark
+./target/release/aqueval perft 6          # perft from the initial position
+./target/release/aqueval divide 4         # per-move perft breakdown
+./target/release/aqueval perft 4 "<FEN>"  # perft from a custom position
 ```
 
 The node count printed by `bench` is the bench signature: it is the same on every platform, because the search and evaluation use no floating point.
@@ -92,27 +92,27 @@ To build with handcrafted evaluation only:
 cargo build --release --no-default-features
 ```
 
-On CPUs without AVX2, NNUE uses scalar inference. Set `QUANT_NO_AVX2=1` to force that path when testing. UCI exposes `EvalFile` and `UseNNUE` in NNUE-enabled builds; `Threads` is currently limited to one search thread.
+On CPUs without AVX2, NNUE uses scalar inference. Set `AQUEVAL_NO_AVX2=1` to force that path when testing. UCI exposes `EvalFile` and `UseNNUE` in NNUE-enabled builds; `Threads` is currently limited to one search thread.
 
 ### Training data
 
-The bundled network, a (768 → 256)x2 → 1 SCReLU net, was trained on 87.3 million positions from Quant's own self-play, scored by Quant's handcrafted-evaluation search, with Quant's own trainer (`scripts/nnue/train.py`). No Stockfish, Leela or other external data, evaluations, networks or tablebases were used. Details are in [docs/NNUE.md](docs/NNUE.md).
+The bundled network, a (768 → 256)x2 → 1 SCReLU net, was trained on 87.3 million positions from aqueval chess's own self-play, scored by aqueval chess's handcrafted-evaluation search, with aqueval chess's own trainer (`scripts/nnue/train.py`). No Stockfish, Leela or other external data, evaluations, networks or tablebases were used. Details are in [docs/NNUE.md](docs/NNUE.md).
 
 ## Testing
 
 ```bash
 cargo test --release
 cargo test --release --no-default-features
-QUANT_NO_AVX2=1 cargo test --release
+AQUEVAL_NO_AVX2=1 cargo test --release
 cargo clippy --all-targets -- -D warnings
-python3 harness/perft.py --engine target/release/quant
+python3 harness/perft.py --engine target/release/aqueval
 ```
 
 The perft harness uses Python's standard library and tests the compiled engine through UCI. The NNUE training tools in `scripts/nnue/` have separate Python dependencies; see the NNUE documentation.
 
-## How Quant is developed
+## How aqueval chess is developed
 
-Quant is developed with AI coding agents under the direction of Deniz. Deniz sets the goals, the test protocol and the release decisions; the agents write the code and run the tests. No change is merged without passing the test suite, and new search and evaluation features also have to pass an SPRT.
+aqueval chess is developed with AI coding agents under the direction of Deniz. Deniz sets the goals, the test protocol and the release decisions; the agents write the code and run the tests. No change is merged without passing the test suite, and new search and evaluation features also have to pass an SPRT.
 
 ## Documentation
 
@@ -128,4 +128,4 @@ harness/README.md      perft harness options and usage
 
 ## License
 
-Quant, including the network in `nets/`, is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. See [LICENSE](LICENSE).
+aqueval chess, including the network in `nets/`, is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. See [LICENSE](LICENSE).

@@ -1,9 +1,9 @@
-use quant::board::Board;
-use quant::movegen::types::MoveList;
-use quant::perft::positions::{
+use aqueval::board::Board;
+use aqueval::movegen::types::MoveList;
+use aqueval::perft::positions::{
     POS_3, POS_4, POS_5, POS_6, POS_KIWIPETE, POS_STARTPOS,
 };
-use quant::perft::{format_perft_divide, perft, perft_divide, perft_no_bulk};
+use aqueval::perft::{format_perft_divide, perft, perft_divide, perft_no_bulk};
 use shakmaty::fen::Fen;
 use shakmaty::{CastlingMode, Chess, Position};
 
@@ -408,7 +408,7 @@ fn test_adversarial_random_walk_divide_and_bulk_oracle() {
                     let shak_n = perft_shakmaty(&shak_pos, d);
                     assert_eq!(
                         bulk_n, shak_n,
-                        "Quant perft ({}) != Shakmaty perft ({}) at depth {} for FEN={}",
+                        "aqueval perft ({}) != Shakmaty perft ({}) at depth {} for FEN={}",
                         bulk_n, shak_n, d, board.to_fen()
                     );
 

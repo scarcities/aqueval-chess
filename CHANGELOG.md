@@ -1,8 +1,14 @@
-# CHANGELOG — Quant
+# CHANGELOG — aqueval chess
+
+Until 2026-11-06 the engine was called Quant. Entries before the rename keep the old name, paths and variables.
 
 Every merged change, with bench signature and nps where relevant. Measured on the reference machine (6 cores / 12 threads, AVX2), release build.
 
 ## 1.0.0 (2026-11-05)
+
+### Renamed to aqueval (bench unchanged, 953967 / 912599)
+- The project is now aqueval; the engine is aqueval chess and reports `id name aqueval 1.0.0` and `id author Deniz`. Crate and binary are `aqueval`, release archives `aqueval-<tag>-<platform>`.
+- The net file is now `nets/aqueval-gen0-74884169.nnue` (same net, same sha256). `QUANT_NO_AVX2` is now `AQUEVAL_NO_AVX2`.
 
 ### v1.0 stability gauntlet and Hash tests (no code change, bench 953967)
 - Run on a cloud server with 16 dedicated vCPUs instead of the reference machine, with main `fa926fa` (NNUE gen-0), built and bench-checked there (953967). 3.7 (`r37-lmr`) failed its SPRT, so it is not in v1.0.

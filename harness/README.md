@@ -1,6 +1,6 @@
 # UCI perft harness
 
-A black-box safety net for Quant's move generation. It talks to the engine
+A black-box safety net for aqueval chess's move generation. It talks to the engine
 binary only through UCI (`position ...` and `go perft N`), so it does not
 depend on internal Rust APIs and keeps working through refactors. It
 complements the in-crate `cargo test` perft and shakmaty tests rather than
@@ -15,10 +15,10 @@ separately from the engine source.
 
 ```bash
 cargo build --release
-python3 harness/perft.py --engine target/release/quant              # entries up to 5M nodes
-python3 harness/perft.py --engine target/release/quant --max-nodes 0  # full suite (incl. 193M Kiwipete D5)
-python3 harness/perft.py --engine target/release/quant --only kiwipete,cpw-pos3
-python3 harness/perft.py --engine target/release/quant --json perft.json --log uci.log
+python3 harness/perft.py --engine target/release/aqueval              # entries up to 5M nodes
+python3 harness/perft.py --engine target/release/aqueval --max-nodes 0  # full suite (incl. 193M Kiwipete D5)
+python3 harness/perft.py --engine target/release/aqueval --only kiwipete,cpw-pos3
+python3 harness/perft.py --engine target/release/aqueval --json perft.json --log uci.log
 ```
 
 Until the engine speaks UCI, its command-line perft can be tested through a
@@ -27,7 +27,7 @@ engine's own `moves` handling; if the engine crashes, the shim exits too, so the
 harness reports the crash with its output instead of waiting for a timeout):
 
 ```bash
-python3 harness/perft.py --engine "python3 harness/cli_shim.py target/release/quant" --max-nodes 0
+python3 harness/perft.py --engine "python3 harness/cli_shim.py target/release/aqueval" --max-nodes 0
 ```
 
 Exit code: `0` all passed, `1` a wrong result, `2` engine or harness error
@@ -129,7 +129,7 @@ producing a diagnosis.
 | `suites/standard.epd` | 21 positions, 116 counts: CPW 1-6 (+ mirrored 4), illegal en passant, castling into/through check, promotions, stalemate/mate |
 | `refgen.py` | Reference move generator used for probes, bisection and suite verification |
 | `mock_engine.py` | Tiny UCI engine on top of `refgen.py` with injectable bugs, for testing the harness |
-| `cli_shim.py` | Temporary UCI front end for an engine that only has `quant divide <depth> <fen>` |
+| `cli_shim.py` | Temporary UCI front end for an engine that only has `aqueval divide <depth> <fen>` |
 | `oracle/` | Standalone Rust tool (shakmaty 0.27.3) that recomputes every suite count |
 
 ## Checking the harness itself

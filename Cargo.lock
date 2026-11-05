@@ -54,7 +54,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "quant"
+name = "aqueval"
 version = "1.0.0"
 dependencies = [
  "shakmaty",

@@ -1,11 +1,11 @@
-use quant::board::Board;
-use quant::movegen::types::MoveList;
+use aqueval::board::Board;
+use aqueval::movegen::types::MoveList;
 use shakmaty::fen::Fen;
 use shakmaty::uci::UciMove;
 use shakmaty::{CastlingMode, Chess, Position};
 use std::collections::BTreeSet;
 
-fn perft_quant(board: &mut Board, depth: usize) -> u64 {
+fn perft_aqueval(board: &mut Board, depth: usize) -> u64 {
     if depth == 0 {
         return 1;
     }
@@ -17,7 +17,7 @@ fn perft_quant(board: &mut Board, depth: usize) -> u64 {
     let mut nodes = 0;
     for &m in move_list.as_slice() {
         let undo = board.make_move(m);
-        nodes += perft_quant(board, depth - 1);
+        nodes += perft_aqueval(board, depth - 1);
         board.unmake_move(m, &undo);
     }
     nodes
@@ -74,7 +74,7 @@ fn test_shakmaty_random_walk_10k_positions() {
 
     for &start_fen in &start_fens {
         for _game in 0..150 {
-            let mut quant_board = Board::from_fen(start_fen).unwrap();
+            let mut aqueval_board = Board::from_fen(start_fen).unwrap();
             let parsed_fen: Fen = start_fen.parse().expect("valid fen");
             let mut shak_pos: Chess = parsed_fen.into_position(CastlingMode::Standard).expect("legal pos");
 
@@ -82,10 +82,10 @@ fn test_shakmaty_random_walk_10k_positions() {
                 total_positions += 1;
 
                 // 1. Move generation comparison
-                let mut quant_moves = MoveList::new();
-                quant_board.generate_legal_moves(&mut quant_moves);
+                let mut aqueval_moves = MoveList::new();
+                aqueval_board.generate_legal_moves(&mut aqueval_moves);
 
-                let quant_set: BTreeSet<String> = quant_moves.iter().map(|m| m.to_uci()).collect();
+                let aqueval_set: BTreeSet<String> = aqueval_moves.iter().map(|m| m.to_uci()).collect();
 
                 let shak_legal = shak_pos.legal_moves();
                 let shak_set: BTreeSet<String> = shak_legal
@@ -93,13 +93,13 @@ fn test_shakmaty_random_walk_10k_positions() {
                     .map(|m| m.to_uci(CastlingMode::Standard).to_string())
                     .collect();
 
-                let current_fen = quant_board.to_fen();
-                if quant_set != shak_set {
+                let current_fen = aqueval_board.to_fen();
+                if aqueval_set != shak_set {
                     panic!(
-                        "Move mismatch at FEN: {}\nQuant moves ({:?}):\n{:?}\nShakmaty moves ({:?}):\n{:?}",
+                        "Move mismatch at FEN: {}\naqueval moves ({:?}):\n{:?}\nShakmaty moves ({:?}):\n{:?}",
                         current_fen,
-                        quant_set.len(),
-                        quant_set,
+                        aqueval_set.len(),
+                        aqueval_set,
                         shak_set.len(),
                         shak_set
                     );
@@ -107,38 +107,38 @@ fn test_shakmaty_random_walk_10k_positions() {
 
                 // 2. In-check verification
                 assert_eq!(
-                    quant_board.is_in_check(),
+                    aqueval_board.is_in_check(),
                     shak_pos.is_check(),
                     "Check mismatch at FEN: {}",
                     current_fen
                 );
 
                 // 3. Perft D2 cross-check at every position (R5)
-                let q_d2 = perft_quant(&mut quant_board, 2);
+                let q_d2 = perft_aqueval(&mut aqueval_board, 2);
                 let s_d2 = perft_shakmaty(&shak_pos, 2);
                 assert_eq!(
                     q_d2, s_d2,
-                    "Perft D2 mismatch at FEN: {}. Quant: {}, Shakmaty: {}",
+                    "Perft D2 mismatch at FEN: {}. aqueval: {}, Shakmaty: {}",
                     current_fen, q_d2, s_d2
                 );
 
                 // If game over (no legal moves), stop game
-                if quant_moves.is_empty() {
+                if aqueval_moves.is_empty() {
                     break;
                 }
 
                 // Pick a random legal move
-                let move_idx = (rng.next_u32() as usize) % quant_moves.len();
-                let chosen_m = quant_moves[move_idx];
+                let move_idx = (rng.next_u32() as usize) % aqueval_moves.len();
+                let chosen_m = aqueval_moves[move_idx];
                 let chosen_uci = chosen_m.to_uci();
 
-                // Make move in Quant
-                let undo = quant_board.make_move(chosen_m);
+                // Make move in aqueval
+                let undo = aqueval_board.make_move(chosen_m);
 
                 // Verify incremental hash matches recalculation
                 assert_eq!(
-                    quant_board.zobrist_hash(),
-                    quant_board.calculate_zobrist(),
+                    aqueval_board.zobrist_hash(),
+                    aqueval_board.calculate_zobrist(),
                     "Zobrist mismatch after move {} at FEN {}",
                     chosen_uci,
                     current_fen
@@ -150,7 +150,7 @@ fn test_shakmaty_random_walk_10k_positions() {
                 shak_pos.play_unchecked(&shak_m);
 
                 // Verify unmake consistency
-                let mut temp_board = quant_board.clone();
+                let mut temp_board = aqueval_board.clone();
                 temp_board.unmake_move(chosen_m, &undo);
                 assert_eq!(
                     temp_board.to_fen(),

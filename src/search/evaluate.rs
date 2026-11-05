@@ -22,7 +22,7 @@ pub fn piece_value(pt: PieceType) -> i32 {
 }
 
 // Tapered evaluation: every term has a middlegame and an endgame value, blended by game phase.
-// Values are Quant's own, built from a few simple shapes (centrality, pawn advancement,
+// Values are aqueval's own, built from a few simple shapes (centrality, pawn advancement,
 // king shelter) rather than tuned tables. Texel tuning comes later in Phase 2.
 
 /// Middlegame / endgame material: P, N, B, R, Q, K.

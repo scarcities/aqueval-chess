@@ -1,4 +1,4 @@
-// Generated Fancy Magic constants for Quant
+// Generated Fancy Magic constants for aqueval
 use crate::types::Bitboard;
 
 #[derive(Copy, Clone, Debug)]

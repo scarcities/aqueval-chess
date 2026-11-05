@@ -94,7 +94,7 @@ def main():
         BuggyPosition.bug = sys.argv[sys.argv.index("--bug") + 1]
     state = sys.argv[sys.argv.index("--state") + 1] if "--state" in sys.argv else None
     if BuggyPosition.bug == "crash-then-dead" and state and os.path.exists(state):
-        print("Quant Chess Engine v0.1.0 (no UCI)", flush=True)
+        print("aqueval chess v0.1.0 (no UCI)", flush=True)
         return
     pos = BuggyPosition(START)
     for line in sys.stdin:

@@ -1,6 +1,6 @@
-use quant::board::Board;
-use quant::movegen::types::{Move, MoveList};
-use quant::types::{Bitboard, Color, PieceType};
+use aqueval::board::Board;
+use aqueval::movegen::types::{Move, MoveList};
+use aqueval::types::{Bitboard, Color, PieceType};
 use shakmaty::{CastlingMode, Chess, Position};
 use std::collections::HashSet;
 
@@ -279,10 +279,10 @@ fn test_adversarial_threefold_repetition_exhaustive() {
 
     // 1. Startpos repetition:
     // Moves: 1. Nf3 Nf6 2. Ng1 Ng8 (occ 2) 3. Nf3 Nf6 4. Ng1 Ng8 (occ 3 -> Threefold!)
-    let nf3 = Move::new(quant::types::Square::G1 as u8, quant::types::Square::F3 as u8, Move::QUIET);
-    let nf6 = Move::new(quant::types::Square::G8 as u8, quant::types::Square::F6 as u8, Move::QUIET);
-    let ng1 = Move::new(quant::types::Square::F3 as u8, quant::types::Square::G1 as u8, Move::QUIET);
-    let ng8 = Move::new(quant::types::Square::F6 as u8, quant::types::Square::G8 as u8, Move::QUIET);
+    let nf3 = Move::new(aqueval::types::Square::G1 as u8, aqueval::types::Square::F3 as u8, Move::QUIET);
+    let nf6 = Move::new(aqueval::types::Square::G8 as u8, aqueval::types::Square::F6 as u8, Move::QUIET);
+    let ng1 = Move::new(aqueval::types::Square::F3 as u8, aqueval::types::Square::G1 as u8, Move::QUIET);
+    let ng8 = Move::new(aqueval::types::Square::F6 as u8, aqueval::types::Square::G8 as u8, Move::QUIET);
 
     assert!(!board.is_repetition(), "Start position is 1st occurrence");
 
@@ -312,7 +312,7 @@ fn test_adversarial_threefold_repetition_exhaustive() {
     assert!(board.is_repetition(), "Re-making restores 3-fold repetition");
 
     // 3. Advancing with an irreversible pawn move must clear repetition
-    let e4 = Move::new(quant::types::Square::E2 as u8, quant::types::Square::E4 as u8, Move::DOUBLE_PAWN_PUSH);
+    let e4 = Move::new(aqueval::types::Square::E2 as u8, aqueval::types::Square::E4 as u8, Move::DOUBLE_PAWN_PUSH);
     let u_e4 = board.make_move(e4);
     assert!(!board.is_repetition(), "Pawn move must reset repetition status");
 
@@ -322,15 +322,15 @@ fn test_adversarial_threefold_repetition_exhaustive() {
     // 4. Non-consecutive 3-fold repetition
     // From startpos: 1. Na3 Na6 2. Nb1 Nb8 (occ 2) 3. Nc3 Nc6 4. Nb1 Nb8 (occ 3)
     let mut b2 = Board::startpos();
-    let na3 = Move::new(quant::types::Square::B1 as u8, quant::types::Square::A3 as u8, Move::QUIET);
-    let na6 = Move::new(quant::types::Square::B8 as u8, quant::types::Square::A6 as u8, Move::QUIET);
-    let nb1_from_a = Move::new(quant::types::Square::A3 as u8, quant::types::Square::B1 as u8, Move::QUIET);
-    let nb8_from_a = Move::new(quant::types::Square::A6 as u8, quant::types::Square::B8 as u8, Move::QUIET);
+    let na3 = Move::new(aqueval::types::Square::B1 as u8, aqueval::types::Square::A3 as u8, Move::QUIET);
+    let na6 = Move::new(aqueval::types::Square::B8 as u8, aqueval::types::Square::A6 as u8, Move::QUIET);
+    let nb1_from_a = Move::new(aqueval::types::Square::A3 as u8, aqueval::types::Square::B1 as u8, Move::QUIET);
+    let nb8_from_a = Move::new(aqueval::types::Square::A6 as u8, aqueval::types::Square::B8 as u8, Move::QUIET);
 
-    let nc3 = Move::new(quant::types::Square::B1 as u8, quant::types::Square::C3 as u8, Move::QUIET);
-    let nc6 = Move::new(quant::types::Square::B8 as u8, quant::types::Square::C6 as u8, Move::QUIET);
-    let nb1_from_c = Move::new(quant::types::Square::C3 as u8, quant::types::Square::B1 as u8, Move::QUIET);
-    let nb8_from_c = Move::new(quant::types::Square::C6 as u8, quant::types::Square::B8 as u8, Move::QUIET);
+    let nc3 = Move::new(aqueval::types::Square::B1 as u8, aqueval::types::Square::C3 as u8, Move::QUIET);
+    let nc6 = Move::new(aqueval::types::Square::B8 as u8, aqueval::types::Square::C6 as u8, Move::QUIET);
+    let nb1_from_c = Move::new(aqueval::types::Square::C3 as u8, aqueval::types::Square::B1 as u8, Move::QUIET);
+    let nb8_from_c = Move::new(aqueval::types::Square::C6 as u8, aqueval::types::Square::B8 as u8, Move::QUIET);
 
     b2.make_move(na3);
     b2.make_move(na6);
@@ -352,11 +352,11 @@ fn test_adversarial_threefold_repetition_exhaustive() {
     // 4. Ke2 Ke7 5. Ke1 Ke8 (occ 2 of uncastled position)
     // 6. Ke2 Ke7 7. Ke1 Ke8 (occ 3 of uncastled position -> 3-fold!)
     let mut b3 = Board::startpos();
-    let e5 = Move::new(quant::types::Square::E7 as u8, quant::types::Square::E5 as u8, Move::DOUBLE_PAWN_PUSH);
-    let ke2 = Move::new(quant::types::Square::E1 as u8, quant::types::Square::E2 as u8, Move::QUIET);
-    let ke7 = Move::new(quant::types::Square::E8 as u8, quant::types::Square::E7 as u8, Move::QUIET);
-    let ke1 = Move::new(quant::types::Square::E2 as u8, quant::types::Square::E1 as u8, Move::QUIET);
-    let ke8 = Move::new(quant::types::Square::E7 as u8, quant::types::Square::E8 as u8, Move::QUIET);
+    let e5 = Move::new(aqueval::types::Square::E7 as u8, aqueval::types::Square::E5 as u8, Move::DOUBLE_PAWN_PUSH);
+    let ke2 = Move::new(aqueval::types::Square::E1 as u8, aqueval::types::Square::E2 as u8, Move::QUIET);
+    let ke7 = Move::new(aqueval::types::Square::E8 as u8, aqueval::types::Square::E7 as u8, Move::QUIET);
+    let ke1 = Move::new(aqueval::types::Square::E2 as u8, aqueval::types::Square::E1 as u8, Move::QUIET);
+    let ke8 = Move::new(aqueval::types::Square::E7 as u8, aqueval::types::Square::E8 as u8, Move::QUIET);
 
     b3.make_move(e4);
     b3.make_move(e5);
@@ -391,7 +391,7 @@ fn test_adversarial_shakmaty_oracle_cross_check() {
     let mut total_positions_checked = 0usize;
 
     for _game in 0..num_games {
-        let mut quant_board = Board::startpos();
+        let mut aqueval_board = Board::startpos();
         let mut shak_pos = Chess::default();
 
         for _ply in 0..max_plies {
@@ -399,16 +399,16 @@ fn test_adversarial_shakmaty_oracle_cross_check() {
 
             // 1. Compare check status
             assert_eq!(
-                quant_board.is_in_check(),
+                aqueval_board.is_in_check(),
                 shak_pos.is_check(),
                 "Check status mismatch at FEN: {}",
-                quant_board.to_fen()
+                aqueval_board.to_fen()
             );
 
-            // 2. Generate legal moves from Quant
-            let mut quant_moves = MoveList::new();
-            quant_board.generate_legal_moves(&mut quant_moves);
-            let quant_uci_set: HashSet<String> = quant_moves.iter().map(|m| m.to_uci()).collect();
+            // 2. Generate legal moves from aqueval
+            let mut aqueval_moves = MoveList::new();
+            aqueval_board.generate_legal_moves(&mut aqueval_moves);
+            let aqueval_uci_set: HashSet<String> = aqueval_moves.iter().map(|m| m.to_uci()).collect();
 
             // 3. Generate legal moves from Shakmaty
             let shak_moves = shak_pos.legal_moves();
@@ -419,39 +419,39 @@ fn test_adversarial_shakmaty_oracle_cross_check() {
 
             // 4. Assert exact legal move sets equality
             assert_eq!(
-                quant_uci_set,
+                aqueval_uci_set,
                 shak_uci_set,
-                "Legal move mismatch at FEN: {}\nQuant: {:?}\nShakmaty: {:?}",
-                quant_board.to_fen(),
-                quant_uci_set,
+                "Legal move mismatch at FEN: {}\naqueval: {:?}\nShakmaty: {:?}",
+                aqueval_board.to_fen(),
+                aqueval_uci_set,
                 shak_uci_set
             );
 
-            if quant_moves.is_empty() {
+            if aqueval_moves.is_empty() {
                 break;
             }
 
             // Pick a random move to advance both engines
-            let chosen_quant_move = quant_moves.as_slice()[rng.gen_range(quant_moves.len())];
-            let chosen_uci = chosen_quant_move.to_uci();
+            let chosen_aqueval_move = aqueval_moves.as_slice()[rng.gen_range(aqueval_moves.len())];
+            let chosen_uci = chosen_aqueval_move.to_uci();
 
             let shak_move = shak_moves
                 .iter()
                 .find(|m| m.to_uci(CastlingMode::Standard).to_string() == chosen_uci)
                 .expect("Move exists in shakmaty");
 
-            quant_board.make_move(chosen_quant_move);
+            aqueval_board.make_move(chosen_aqueval_move);
             shak_pos.play_unchecked(shak_move);
 
             // Verify FEN pieces and side to move match shakmaty
-            let quant_fen = quant_board.to_fen();
+            let aqueval_fen = aqueval_board.to_fen();
             let shak_fen = shakmaty::fen::Fen::from_position(shak_pos.clone(), shakmaty::EnPassantMode::Legal).to_string();
-            let quant_parts: Vec<&str> = quant_fen.split_whitespace().collect();
+            let aqueval_parts: Vec<&str> = aqueval_fen.split_whitespace().collect();
             let shak_parts: Vec<&str> = shak_fen.split_whitespace().collect();
 
-            assert_eq!(quant_parts[0], shak_parts[0], "Board piece placement FEN mismatch");
-            assert_eq!(quant_parts[1], shak_parts[1], "Side to move FEN mismatch");
-            assert_eq!(quant_parts[2], shak_parts[2], "Castling rights FEN mismatch");
+            assert_eq!(aqueval_parts[0], shak_parts[0], "Board piece placement FEN mismatch");
+            assert_eq!(aqueval_parts[1], shak_parts[1], "Side to move FEN mismatch");
+            assert_eq!(aqueval_parts[2], shak_parts[2], "Castling rights FEN mismatch");
         }
     }
 
@@ -482,8 +482,8 @@ fn test_adversarial_diagonal_en_passant_discovered_check() {
     board.generate_legal_moves(&mut moves);
 
     let ep_move = Move::new(
-        quant::types::Square::E4 as u8,
-        quant::types::Square::D6 as u8,
+        aqueval::types::Square::E4 as u8,
+        aqueval::types::Square::D6 as u8,
         Move::EN_PASSANT,
     );
     assert!(
@@ -493,8 +493,8 @@ fn test_adversarial_diagonal_en_passant_discovered_check() {
 
     // Verify e4-e5 is legal though
     let e5_move = Move::new(
-        quant::types::Square::E4 as u8,
-        quant::types::Square::E5 as u8,
+        aqueval::types::Square::E4 as u8,
+        aqueval::types::Square::E5 as u8,
         Move::QUIET,
     );
     assert!(
@@ -516,8 +516,8 @@ fn test_adversarial_vertical_pinned_pawn_cannot_en_passant() {
     board.generate_legal_moves(&mut moves);
 
     let ep_move = Move::new(
-        quant::types::Square::E5 as u8,
-        quant::types::Square::D6 as u8,
+        aqueval::types::Square::E5 as u8,
+        aqueval::types::Square::D6 as u8,
         Move::EN_PASSANT,
     );
     assert!(
@@ -542,7 +542,7 @@ fn test_adversarial_double_check_only_king_can_move() {
     for &m in moves.as_slice() {
         assert_eq!(
             m.from_sq(),
-            quant::types::Square::E1 as u8,
+            aqueval::types::Square::E1 as u8,
             "In double check, only king moves are permitted. Found move from sq {}",
             m.from_sq()
         );

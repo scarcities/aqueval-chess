@@ -1,16 +1,16 @@
 [package]
-name = "quant"
+name = "aqueval"
 version = "1.0.0"
 edition = "2021"
 authors = ["Deniz"]
 license = "GPL-3.0-or-later"
 
 [lib]
-name = "quant"
+name = "aqueval"
 path = "src/lib.rs"
 
 [[bin]]
-name = "quant"
+name = "aqueval"
 path = "src/main.rs"
 
 [features]

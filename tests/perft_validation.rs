@@ -1,9 +1,9 @@
 use std::time::{Duration, Instant};
-use quant::board::Board;
-use quant::perft::positions::{
+use aqueval::board::Board;
+use aqueval::perft::positions::{
     ALL_POSITIONS, POS_3, POS_4, POS_5, POS_6, POS_KIWIPETE, POS_STARTPOS,
 };
-use quant::perft::{format_perft_divide, perft, perft_divide, perft_no_bulk};
+use aqueval::perft::{format_perft_divide, perft, perft_divide, perft_no_bulk};
 
 #[test]
 fn test_position_1_startpos_depths_1_to_6() {

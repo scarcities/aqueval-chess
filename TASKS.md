@@ -1,4 +1,4 @@
-# TASKS.md — Quant
+# TASKS.md — aqueval chess
 
 Labels: `[LEAD]` = correctness/performance-critical (board, movegen, make/unmake, search, TT, NNUE, SIMD).
 `[DELEGATE]` = scripts, tests, CI, docs, data generation, refactors; each has a self-contained spec.

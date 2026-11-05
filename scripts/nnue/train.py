@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Quant's own NNUE trainer: (768 -> 256)x2 -> 1, SCReLU, CPU or CUDA via PyTorch.
+"""aqueval's own NNUE trainer: (768 -> 256)x2 -> 1, SCReLU, CPU or CUDA via PyTorch.
 
 Writes nets in exactly the layout the engine loads (src/nnue, docs/NNUE.md), which is the
 same layout bullet's quantised.bin has with the SavedFormat listed in docs/NNUE.md, so nets

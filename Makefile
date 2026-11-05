@@ -23,13 +23,13 @@ test-hce:
 
 # NNUE with the scalar kernels, as on CPUs without AVX2.
 test-scalar:
-	QUANT_NO_AVX2=1 cargo test --release
+	AQUEVAL_NO_AVX2=1 cargo test --release
 
 bench: release
-	./target/release/quant bench
+	./target/release/aqueval bench
 
 perft: release
-	./target/release/quant perft 6
+	./target/release/aqueval perft 6
 
 clippy:
 	cargo clippy --all-targets -- -D warnings

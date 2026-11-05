@@ -20,7 +20,7 @@ jobs:
           - { os: macos-14, target: aarch64-apple-darwin, name: macos-arm64, exe: quant }
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -34,7 +34,7 @@ jobs:
           mkdir "$dir"
           cp "target/${{ matrix.target }}/release/${{ matrix.exe }}" README.md LICENSE* CHANGELOG.md "$dir"/
           if [ "$RUNNER_OS" = "Windows" ]; then 7z a "$dir.zip" "$dir"; else tar czf "$dir.tar.gz" "$dir"; fi
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.name }}
           path: quant-*.*z*
@@ -43,7 +43,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           merge-multiple: true
       - run: sha256sum quant-* > SHA256SUMS

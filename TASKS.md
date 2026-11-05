@@ -11,6 +11,7 @@ Status: `todo`, `in progress`, `review`. Finished tasks are removed; CHANGELOG.m
 | P2-01 | Only set the EP square/hash key when an enemy pawn can actually capture | [LEAD] | todo |
 | P2-02 | `unmake_move` pops its `UndoState` from history instead of taking it as a parameter | [DELEGATE] | todo |
 | P2-03 | Real ponder: on `ponderhit` switch to normal time control instead of moving at once | [LEAD] | todo |
+| P2-04 | After v1.0: when the best move comes from an aborted iteration, print a matching `info ... pv` line before `bestmove` (fastchess warned 151 times in the v1.0 gauntlet that `bestmove` did not start the last PV) | [LEAD] | todo |
 
 ## Phase 3 — NNUE (see docs/NNUE.md)
 

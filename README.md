@@ -2,7 +2,7 @@
 
 A UCI-compatible chess engine written in Rust (edition 2021). Quant combines legal bitboard move generation, modern game-tree search, and NNUE evaluation. Built for local play, benchmarking, and engine development.
 
-- **Strength:** about <!-- ELO: from the v1.0 gauntlet --> Elo. This is an estimate against Stockfish with limited Elo (`UCI_LimitStrength`), not an official rating.
+- **Strength:** ~2980 Elo, an estimate against Stockfish 17 with UCI_Elo 2900 at 60+0.6 over 1000 games, not an official rating.
 - **Platforms:** Linux and Windows (x86-64), macOS (Apple Silicon). AVX2 is detected at run time; CPUs without it use scalar inference with identical results at about half the speed.
 
 ## Download

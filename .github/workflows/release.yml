@@ -1,0 +1,52 @@
+name: Release
+
+# Push a tag like v1.0.0: every platform builds, runs the tests (perft, bench signature) and
+# uploads its binary to a draft GitHub release, which is published by hand after a look.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu, name: linux-x86_64, exe: quant }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, name: windows-x86_64, exe: quant.exe }
+          - { os: macos-14, target: aarch64-apple-darwin, name: macos-arm64, exe: quant }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      # Tests include perft and the bench signature, which must match on every platform.
+      - run: cargo test --release --target ${{ matrix.target }}
+      - run: cargo build --release --target ${{ matrix.target }}
+      - name: Package
+        shell: bash
+        run: |
+          dir="quant-${GITHUB_REF_NAME}-${{ matrix.name }}"
+          mkdir "$dir"
+          cp "target/${{ matrix.target }}/release/${{ matrix.exe }}" README.md LICENSE* CHANGELOG.md "$dir"/
+          if [ "$RUNNER_OS" = "Windows" ]; then 7z a "$dir.zip" "$dir"; else tar czf "$dir.tar.gz" "$dir"; fi
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.name }}
+          path: quant-*.*z*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          merge-multiple: true
+      - run: sha256sum quant-* > SHA256SUMS
+      - run: gh release create "$GITHUB_REF_NAME" quant-* SHA256SUMS --draft --title "Quant $GITHUB_REF_NAME" --generate-notes --repo "$GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ github.token }}

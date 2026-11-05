@@ -139,7 +139,7 @@ quant datagen --out data/hce1 --threads 10 --games 600000 --nodes 5000 --seed 1
 - One file per thread, `data_s<seed>_t<id>.txt`, lines `<FEN> | <cp> | <result>`, White's
   view (bullet's text format). Use a different `--seed` for every run.
 - Throughput: ~105 kept positions per game; ~195 positions/s per thread at 5000 nodes on the
-  cloud Xeon (2.1 GHz). Expect ~2000/s on 10 threads, so ~7 M positions per hour.
+  cloud Xeon (2.1 GHz). Expect ~2000/s on 10 threads of the reference machine, so ~7 M positions per hour.
 - With an `nnue` build and a net (`--evalfile`, or embedded), the games use the net: that is
   the reinforcement loop below.
 
@@ -167,8 +167,8 @@ python3 scripts/nnue/train.py eval --net nets/hce1/epoch040.nnue --fen "<fen>"
 - AdamW, lr 1e-3 with cosine decay to 1e-5 over the epochs, batch 16384, weights clipped
   to ±1.98 after every step. 0.5 % (max 200k positions) held out for a validation loss.
 - Every epoch writes `epochNNN.pt` (resume with `--resume`) and `epochNNN.nnue`.
-- Speed: ~80k positions/s on 4 cloud threads (2.1 GHz Xeon), so expect ~150k/s on 10
-  threads: one epoch over 60 M positions ≈ 7 min, 40 epochs ≈ 4–5 h.
+- Speed: ~80k positions/s on 4 cloud threads (2.1 GHz Xeon), so expect ~150k/s on 10 threads of the reference machine:
+  one epoch over 60 M positions ≈ 7 min, 40 epochs ≈ 4–5 h.
 
 Cloud end-to-end test (2026-10-21), only to prove the pipeline: 5000 HCE games at 2000 nodes
 → 482k positions → 15 epochs (90 s) → net loaded by the engine. Results with that net

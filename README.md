@@ -54,4 +54,4 @@ The net was trained on 87.3 million positions from Quant's own self-play with it
 
 ## License
 
-<!-- LICENSE: to be decided -->
+Quant, including the net in `nets/`, is free software under the GNU General Public License v3.0; see [LICENSE](LICENSE).

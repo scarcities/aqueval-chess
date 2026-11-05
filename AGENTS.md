@@ -1,7 +1,7 @@
 # AGENTS.md — Quant
 
 Living document for anyone (human or agent) working on Quant, an original UCI chess engine in Rust.
-Target machine: the reference machine (Zen+, 6c/12t, AVX2, no AVX-512, slow PEXT), 32 GB RAM.
+Reference machine: 6 cores / 12 threads, AVX2, no AVX-512, slow (microcoded) PEXT, 32 GB RAM.
 
 ## Architecture
 
@@ -47,7 +47,7 @@ Invariants: no floating point in the search or eval (bench = cross-platform chec
 
 | Idea | Result |
 |---|---|
-| Fancy magics vs PEXT for sliders | Magics chosen: PEXT is microcoded (~18 cycles) on Zen+, magics use one `imul`. Bulk perft reaches ~140 Mnps. |
+| Fancy magics vs PEXT for sliders | Magics chosen: PEXT is microcoded (~18 cycles) on the reference machine, magics use one `imul`. Bulk perft reaches ~140 Mnps. |
 | Stack `MoveList` vs `Vec` | Stack array kept: zero heap allocations in movegen. |
 | Strict legal movegen vs pseudo-legal + check | Legal generation kept: lets perft bulk-count at the last ply. |
 | Aspiration windows (fail-hard search, ±25 from depth 4 and ±50 from depth 6) | Fail-hard versions ~+4, undecided at 4000 games (branches `p2/aspiration`, `p2/aspiration-v2`). On fail-soft with a widening window and shallower fail-high re-search: +44 (2026-10-23, merged). |

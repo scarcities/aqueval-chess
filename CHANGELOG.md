@@ -1,6 +1,6 @@
 # CHANGELOG — Quant
 
-Every merged change, with bench signature and nps where relevant. Measured on the reference machine, release build.
+Every merged change, with bench signature and nps where relevant. Measured on the reference machine (6 cores / 12 threads, AVX2), release build.
 
 ## Unreleased
 

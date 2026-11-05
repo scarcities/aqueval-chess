@@ -84,7 +84,7 @@ impl UciSession {
 fn test_uci_handshake() {
     let out = run_uci_in_process("uci\nquit\n");
     assert!(out.contains("id name Quant 0.1.0"), "Missing engine name: {out}");
-    assert!(out.contains("id author Quant Engine Team"), "Missing author: {out}");
+    assert!(out.contains("id author Deniz"), "Missing author: {out}");
     assert!(out.contains("option name Hash"), "Missing Hash option: {out}");
     assert!(out.contains("option name Threads"), "Missing Threads option: {out}");
     assert!(out.contains("uciok"), "Missing uciok: {out}");

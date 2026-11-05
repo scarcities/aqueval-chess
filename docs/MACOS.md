@@ -40,8 +40,8 @@ cargo build --release
 ./target/release/quant bench
 ```
 
-The line `Nodes searched  : 547732` must show exactly that number. Nodes/second will differ
-from the Linux machine; the node count must not. The handcrafted-eval build gives 1032928:
+The line `Nodes searched  : …` must show exactly the bench signature in AGENTS.md (953967 for v1.0). Nodes/second will differ
+from the Linux machine; the node count must not. The handcrafted-eval build gives the second signature there (912599):
 
 ```
 cargo build --release --no-default-features

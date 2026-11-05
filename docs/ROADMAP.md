@@ -1,10 +1,10 @@
-# Epsylon-Roadmap: Recherche-Ideen einbauen
+# Quant-Roadmap: Recherche-Ideen einbauen
 
 Stand 21.10.2026, geprüft an `main` 44e7eea. Grundlage: der validierte Bericht „Epsylons Elo-Fahrplan“ und ein Code-Audit (nur gelesen). Alle Ideen sind in eigenen Worten beschrieben; es wird kein Code anderer Engines übernommen. Umsetzung und Tests: Thread „Engine-Entwicklung übernehmen“.
 
 **Kurzfassung.** Erst die laufende Queue zu Ende bringen und dabei drei Fehler im Fundament beheben, die das Audit gefunden hat: Der TT überschreibt bei jeder Kollision, Wiederholungen zählen in der Suche erst beim dritten Mal als Remis, und die Suche ist durchgehend fail-hard. Danach kommt das eigene NNUE (Generation 0), weil es pro Rechenstunde mit Abstand am meisten Elo bringt: grob +150 bis +300 Elo für etwa anderthalb Tage Maschinenzeit, gegen etwa +5 Elo pro Suchtest. Die großen eval-unabhängigen Suchtechniken (Singular Extensions, History Pruning, History-Paket, Capture History neu, ProbCut, Correction-History-Leiter) folgen auf dem NNUE-Stand, weil ihre Margins dann gleich auf der richtigen Eval-Skala sitzen. SPSA-Tuning kommt erst danach. Das Testprotokoll wechselt auf **[0, 10] nElo mit Cap 25.000**; das sind etwa [0; 5,8] in klassischem Elo und fast doppelt so viele Tests pro Tag wie [0, 5] nElo bei kaum weniger eingesammeltem Elo.
 
-**Lesehinweis.** Elo-Erwartungen sind markiert: **M** = gemessen in einer anderen Engine (Quelle im Bericht), **S** = eigene Schätzung für Epsylon. „nElo“ ist normalized Elo, die Einheit, in der fastchess und `scripts/run_sprt.sh` (`model=normalized`) die Grenzen rechnen. Bei Epsylons STC mit UHO-Buch gilt etwa 1 Elo ≈ 1,73 nElo. Zeilenangaben beziehen sich auf `main` 44e7eea.
+**Lesehinweis.** Elo-Erwartungen sind markiert: **M** = gemessen in einer anderen Engine (Quelle im Bericht), **S** = eigene Schätzung für Quant. „nElo“ ist normalized Elo, die Einheit, in der fastchess und `scripts/run_sprt.sh` (`model=normalized`) die Grenzen rechnen. Bei Quants STC mit UHO-Buch gilt etwa 1 Elo ≈ 1,73 nElo. Zeilenangaben beziehen sich auf `main` 44e7eea.
 
 ## Testprotokoll ab dem Test nach IIR
 
@@ -31,7 +31,7 @@ Stand 21.10.2026, geprüft an `main` 44e7eea. Grundlage: der validierte Bericht 
 | Re-Search-Reihenfolge nach LMR | in Ordnung: erst volle Tiefe mit Nullfenster, dann volles Fenster nur bei alpha < score < beta | `src/search/mod.rs:402-411` | keine |
 | Rückgabewert bei TT-Cutoffs | in Ordnung: TT-Wert wird zurückgegeben, Cutoffs nur im Nullfenster. Der Rest der Suche ist aber fail-hard (`return beta` in NMP, Beta-Cutoff und QS; TT speichert beta statt des echten Werts) | `mod.rs:234-247`; fail-hard: `mod.rs:286`, `:372-373`, `:441`, `:462-463` | Schritt 1.4 Fail-soft |
 | 50-Züge-Regel bei TT-Cutoffs | fehlt: kein Schutz bei hohem Halbzugzähler | `mod.rs:228`, `:234` | in Schritt 1.1 mitnehmen |
-| Move Overhead, movestogo, harte Grenze | in Ordnung: Overhead wird abgezogen, movestogo geparst, harte Grenze höchstens 80 % der Restzeit. Aber: neue Iteration nur, solange weniger als die Hälfte des weichen Limits verbraucht ist; Epsylon nutzt damit deutlich weniger Zeit als zugeteilt | `src/uci/mod.rs:184-192`, `src/search/time.rs:50-60`, `mod.rs:632-635` | Schritt 1.6 Zeitmanagement |
+| Move Overhead, movestogo, harte Grenze | in Ordnung: Overhead wird abgezogen, movestogo geparst, harte Grenze höchstens 80 % der Restzeit. Aber: neue Iteration nur, solange weniger als die Hälfte des weichen Limits verbraucht ist; Quant nutzt damit deutlich weniger Zeit als zugeteilt | `src/uci/mod.rs:184-192`, `src/search/time.rs:50-60`, `mod.rs:632-635` | Schritt 1.6 Zeitmanagement |
 | LMP-Zähler | in Ordnung: zählt über den Listenindex, also inklusive geprunter Züge und Schläge | `mod.rs:321` | keine |
 | Quiet Checks in der QS | keine vorhanden. Aber die QS steht auch im Schach auf der statischen Eval und übergeht stille Umwandlungen | `mod.rs:439-443`, `:450` | QS-Paket in Phase 3 |
 | Stack-Sentinels | in Ordnung: alle Rückblicke über `checked_sub`/`Option`, Ply-Grenze vor den Tabellen | `mod.rs:143-152`, `:223`, `:255-260` | Muster für ContHist Ply 4/6 beibehalten |
@@ -76,11 +76,11 @@ Stand 21.10.2026, geprüft an `main` 44e7eea. Grundlage: der validierte Bericht 
 | Schritt | Inhalt | Dauer (S) |
 |---|---|---|
 | 2.1 | Datagen mit dem `main` nach Phase 1: 100 Mio. Stellungen, 5.000 Knoten pro Zug, zufällige Eröffnungszüge, Filter wie in `docs/NNUE.md` | ~14 h mit 10 Threads (~7 Mio./h) |
-| 2.2 | Training mit Epsylons eigenem Trainer (`scripts/nnue/train.py`, CPU-PyTorch im venv, ~200 MB Download) oder, falls eine CUDA/ROCm-GPU da ist, mit bullet als Bibliothek in einem eigenen Trainingsprogramm | ~6–8 h CPU für 40 Epochen |
+| 2.2 | Training mit Quants eigenem Trainer (`scripts/nnue/train.py`, CPU-PyTorch im venv, ~200 MB Download) oder, falls eine CUDA/ROCm-GPU da ist, mit bullet als Bibliothek in einem eigenen Trainingsprogramm | ~6–8 h CPU für 40 Epochen |
 | 2.3 | Sanity-Checks aus `docs/NNUE.md`, Eval-Skala auf Centipawns normieren, dann SPRT NNUE-Build gegen HCE-`main` | [0, 10] nElo; M: akimbo +388, Stormphrax +358 (gegen die HCE-Engine des Autors), Leorik ~+305. S: +150 bis +300 |
 | 2.4 | Bei Erfolg: Netz einbetten, NNUE als Default, Gauntlet „NNUE Gen-0“ | ~1 h |
 
-Nur selbst erzeugte Daten, kein fremdes Netz und keine fremden Datensätze. Das hält Epsylon eigenständig und erfüllt die TCEC-NNUE-Richtlinie.
+Nur selbst erzeugte Daten, kein fremdes Netz und keine fremden Datensätze. Das hält Quant eigenständig und erfüllt die TCEC-NNUE-Richtlinie.
 
 ### Phase 3: Suchstruktur auf dem NNUE-Stand (~3–4 Tage)
 
@@ -135,6 +135,6 @@ Zwei unabhängige Durchgänge haben rund 200 Aussagen des Berichts gegen ihre Qu
 
 - **Bestätigt** sind alle Zahlen, auf denen die Rangfolge beruht: Weiss Singular Extensions +11,52 / +24,21, TT-Ersetzung +16,98 / +6,63, TT in der QS +5,41 / +6,89, History Pruning +9,05 / +10,50, ProbCut +6,36 / +6,65, Pawn-CorrHist +4,87 / +11,70; StockDory Zeitmanagement +6,85 / +9,10; Viridithas +29,59 und +14,41; akimbo +387,57; Stormphrax +357,65; TCEC-NNUE-Richtlinie; bullet ohne CPU-Backend.
 - **Korrigiert:** sechs Ethereal-Paare mit vertauschtem STC/LTC oder Zahlen aus Nachbar-Commits (u. a. ProbCut-Vorprüfung +2,61 / +6,10, LMP-Zähler +4,79 / +6,31); Stockfish-Optimism (STC wurde abgelehnt, nicht „unentschieden“); Tetrarchs +63,4 gilt für ein ganzes Release; Threat-Inputs kamen bei Viridithas mit v19; Leorik +355 enthält ~50 Elo Nicht-NNUE-Änderungen; Stormphrax +358 ist gegen die frühere HCE-Engine des Autors gemessen.
-- **SPRT-Einheit:** Die Wahrscheinlichkeiten im Bericht gelten für logistische Grenzen. Epsylon testet in nElo; daraus folgt das neue Protokoll oben. Die mittleren Testlängen im Bericht waren um ~11 % zu hoch (Wald-Formel statt B/μ).
+- **SPRT-Einheit:** Die Wahrscheinlichkeiten im Bericht gelten für logistische Grenzen. Quant testet in nElo; daraus folgt das neue Protokoll oben. Die mittleren Testlängen im Bericht waren um ~11 % zu hoch (Wald-Formel statt B/μ).
 
 Die korrigierte Fassung des Berichts und beide Prüfprotokolle liegen in `epsylon-research/` (Projektdateien).

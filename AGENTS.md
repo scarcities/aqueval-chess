@@ -25,7 +25,7 @@ Invariants: no floating point in the search or eval (bench = cross-platform chec
 
 ## Current status
 
-- **Elo estimate (vs limited Stockfish):** ~2560 (2026-10-23, gauntlet "HCE final" after docs/ROADMAP.md Phase 1: draw hygiene, pawn correction history, fail-soft, aspiration windows, time management on top of the 2026-10-21 search). Approximation against Stockfish 17 with `UCI_LimitStrength`, not a CCRL rating; SF's Elo scale is calibrated at longer time controls, so levels disagree somewhat (here by ~70).
+- **Elo estimate (vs limited Stockfish):** ~2875 (2026-10-26, NNUE gen-0 default build; the handcrafted build after docs/ROADMAP.md Phase 1 was ~2560 on 2026-10-23). Phase 3 search changes merged since then are not yet in a gauntlet. Approximation against Stockfish 17 with `UCI_LimitStrength`, not a CCRL rating; SF's Elo scale is calibrated at longer time controls, so levels disagree somewhat (here by ~70).
 
   | Date | Opponent | TC | Games | Score | Elo diff | Implied Quant Elo |
   |---|---|---|---|---|---|---|
@@ -38,7 +38,7 @@ Invariants: no floating point in the search or eval (bench = cross-platform chec
   | 2026-10-17 | SF 17, UCI_Elo 2000 | 10+0.1 | 200 | 110.5 (55.3 %) | +37 ± 46 | ~2036 |
   | 2026-10-17 | SF 17, UCI_Elo 2300 | 10+0.1 | 200 | 86.5 (43.3 %) | −47 ± 44 | ~2252 |
 
-  NNUE gen-0 rows (`--features nnue` build with the gen-0 net, not yet the default build): ~2875; probes 2600: 82.5 %, 2900: 42.5 %, 3190: 17.5 %. 2026-10-23 levels picked from 20-game probes (2600: 47.5 %, 2900: 10 %, 3190: 10 %). 2026-10-19 rows: ~2430. 2026-10-17 rows: after steps 1–4 only (~2150). Rerun: `scripts/elo_gauntlet.sh` with `LEVELS="2300 2600"`.
+  NNUE gen-0 rows (gen-0 net, measured just before it became the default build): ~2875; probes 2600: 82.5 %, 2900: 42.5 %, 3190: 17.5 %. 2026-10-23 levels picked from 20-game probes (2600: 47.5 %, 2900: 10 %, 3190: 10 %). 2026-10-19 rows: ~2430. 2026-10-17 rows: after steps 1–4 only (~2150). Rerun: `scripts/elo_gauntlet.sh` with `LEVELS="2300 2600"`.
 - **Bench signature:** 953967 (default build, NNUE gen-0); 912599 with `--no-default-features` (handcrafted eval)
 - **Perft 6 startpos:** see CHANGELOG.md for nps (bulk and non-bulk).
 - **Roadmap:** docs/ROADMAP.md (integration plan). Phase 1 (search, steps 1.0–1.7) done 2026-10-23: all merged except TT buckets (1.2, H0 twice). Phase 2 NNUE gen-0: datagen 2026-10-23 07:48 → 2026-10-24 02:08 (87.3 M positions), training 40 epochs (paused 2026-10-24 09:02 → 2026-10-26 14:53, resumed from the epoch-22 checkpoint after a reboot), SPRT vs HCE H1 2026-10-26. NNUE gen-0 became the default build 2026-10-26 (2.4); next: Phase 3 of docs/ROADMAP.md.
@@ -57,7 +57,7 @@ Invariants: no floating point in the search or eval (bench = cross-platform chec
 | TT buckets (4-entry depth/age replacement; 2-entry depth-preferred + always-replace) | Not merged: H0 both (−2.9, +1.9) at 8+0.08 with 16 MB Hash, where the single-slot table rarely fills. Code on `r12-tt`, `r12b-tt`. Retry with longer TC or smaller Hash, or once singular extensions need deep entries to survive. |
 | Double / negative singular extensions | Not merged: bundle −13.4 (H0), double only −14.74 (H0), both on top of singular extensions + multicut with NNUE gen-0. Code on `r33-ext`, `r33b-ext`. Retry with a larger margin or after the history package changes move ordering. |
 | History pruning (quiet moves with butterfly + 2·continuation below −2000·depth / −1000·depth at depth ≤ 4) | Not merged: −3.1 and −15.5, H0 both. Code on `r35-hp`, `r35b-hp`. The looser threshold hurt more; retry only as part of LMR-by-history (3.7), where bad history reduces instead of pruning. |
-| Capture history (gravity table, bonus/malus on capture cutoffs, added to MVV-LVA) | Not merged: −5.7 (/32) and −5.1 (/8), H0 both times on top of SEE ordering. Code on `q5-caphist`, `q5b-caphist`. Retry using it in the SEE threshold / capture pruning rather than only ordering. |
+| Capture history (gravity table, bonus/malus on capture cutoffs, added to MVV-LVA) | Not merged: −5.7 (/32) and −5.1 (/8), H0 both times on top of SEE ordering. Code on `q5-caphist`, `q5b-caphist`. Package retry (3.6: SEE threshold shifted by caphist/128, victim + caphist inside good/bad groups, malus on every cutoff): −2.1, H0 (2026-10-30, `r36-caphist`). Retry only for capture pruning in qsearch or after the LMR package. |
 
 ## SPRT log
 
@@ -118,6 +118,7 @@ Run with `scripts/run_sprt.sh`, one test at a time, fastchess concurrency 10 (2 
 | History tables kept across `go` within a game (butterfly and continuation halved, killers cleared; vs gravity + malus) | [0, 10] nElo | H1 accepted | +38.4 ± 17.8 (nElo +54.7 ± 25.1) | 736 |
 | History pruning, depth ≤ 4, butterfly + 2·continuation < −2000·depth (vs history kept across go) | [0, 10] nElo | H0 accepted | −3.1 ± 7.5 (nElo −4.6 ± 11.2) | 3708 |
 | History pruning at −1000·depth, the one variation (vs history kept across go) | [0, 10] nElo | H0 accepted | −15.5 ± 12.7 (nElo −23.7 ± 19.4) | 1236 |
+| Capture history package: SEE threshold + caphist/128, ordering 16·victim + caphist, malus for every capture tried before a cutoff (vs history kept across go) | [0, 10] nElo | H0 accepted | −2.14 ± 6.97 (nElo −3.15 ± 10.28) | 4390 |
 
 ## Future roadmap
 
@@ -165,6 +166,6 @@ Merged 2026-10-22 (SPRT [-8, 0] nElo H1, no-op in the default build): inference,
 2. `cargo test --release` (includes perft) must pass after every change.
 3. No heap allocations in movegen, make/unmake and search.
 4. Tasks in TASKS.md are `[LEAD]` (correctness/performance-critical) or `[DELEGATE]` (scripts, tests, CI, docs, refactors, with self-contained specs).
-5. SPRT: gainers [0, 5], simplifications [-5, 0], normalized; log all results above.
+5. SPRT: gainers [0, 10] nElo, enablers/simplifications/speed-ups [−8, 0] nElo, cap 25,000 games (protocol from 2026-10-21 above); log all results above.
 6. One commit per completed milestone; delegate tasks on `task/<TASK-ID>` branches, reviewed by the lead before merging.
 7. Ask the user before any large architectural change.

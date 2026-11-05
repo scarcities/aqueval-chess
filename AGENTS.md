@@ -3,7 +3,7 @@
 Living document for anyone (human or agent) working on Quant, an original UCI chess engine in Rust.
 Target machine: the reference machine (Zen+, 6c/12t, AVX2, no AVX-512, slow PEXT), 32 GB RAM.
 
-## Architecture (Phase 1)
+## Architecture
 
 | Module | What it does |
 |---|---|
@@ -11,10 +11,10 @@ Target machine: the reference machine (Zen+, 6c/12t, AVX2, no AVX-512, slow PEXT
 | `src/board/` | `Board` with piece/colour bitboards, FEN parse/serialise with validation, Zobrist (SplitMix64 keys), make/unmake with `UndoState`, hash history for repetition, halfmove clock |
 | `src/movegen/` | Fancy magic bitboards (embedded constants), step attacks, 16-bit `Move`, stack `MoveList` (`[Move; 256]`), strictly legal generation via check masks and pin rays |
 | `src/perft/` | Perft with and without bulk counting, divide, the six standard positions |
-| `src/search/` | Phase 1 placeholder: iterative-deepening alpha-beta, material eval, soft/hard time limits |
+| `src/search/` | Iterative deepening, PVS with aspiration windows, TT, quiescence with SEE, pruning/reductions/extensions (see README.md and the SPRT log), history tables, correction history, time management (`time.rs`) |
 | `src/uci/` | UCI loop; search runs on its own thread so `stop`/`isready` stay responsive; `go perft N` prints divide |
 | `src/bench/` | Searches the six standard positions to depth 11; total nodes = bench signature |
-| `src/nnue/` | Phase 3 NNUE: (768 → 256)x2 → 1 SCReLU net, loader (bullet quantised.bin layout), lazy accumulator stack, AVX2 kernels picked at run time. On by default (`nnue` feature, net from `nets/` embedded by build.rs); scalar fallback without AVX2; see docs/NNUE.md |
+| `src/nnue/` | NNUE: (768 → 256)x2 → 1 SCReLU net, loader (bullet quantised.bin layout), lazy accumulator stack, AVX2 kernels picked at run time. On by default (`nnue` feature, net from `nets/` embedded by build.rs); scalar fallback without AVX2; see docs/NNUE.md |
 | `src/search/evaluator.rs` | All make/unmake and static evals in the search go through `Evaluator` (HCE in the default build, NNUE accumulators in nnue builds) |
 | `src/datagen/` | `quant datagen`: self-play training data, `<FEN> \| <cp> \| <result>` per line |
 | `scripts/nnue/train.py` | Quant's own NNUE trainer (PyTorch, CPU or CUDA), data packing, exact integer eval for cross-checks |
@@ -122,18 +122,9 @@ Run with `scripts/run_sprt.sh`, one test at a time, fastchess concurrency 10 (2 
 
 ## Future roadmap
 
-### Phase 2: Search
+The step-by-step plan is docs/ROADMAP.md. Done so far: its Phases 1–2 and Phase 3 up to 3.7.
 
-- Core: PVS, iterative deepening, aspiration windows, transposition table with aging and buckets, quiescence search with SEE
-- Move ordering: TT move, good captures by SEE plus capture history, killers, counter moves, butterfly history, continuation history (1 and 2 ply), bad captures last
-- Pruning and reductions: reverse futility pruning, null move pruning with verification, razoring, futility pruning, late move pruning, SEE pruning, LMR with tuned log formula and history-based adjustments, ProbCut, internal iterative reductions
-- Extensions: singular extensions with double and negative extensions, check extensions
-- "Improving" heuristic, static eval correction history (pawn, material, non-pawn)
-- Mate distance pruning, repetition and 50-move handling, upcoming repetition detection
-- Handcrafted eval as temporary baseline: tapered material plus piece-square tables, Texel-tuned
-- Every feature tested with SPRT before merging
-
-### Phase 3: NNUE
+### NNUE
 
 Merged 2026-10-22 (SPRT [-8, 0] nElo H1, no-op in the default build): inference, search integration behind the `nnue` feature, `quant datagen`, own trainer, netviz loader. Plan, architecture, file format and training steps: docs/NNUE.md.
 
@@ -145,14 +136,10 @@ Merged 2026-10-22 (SPRT [-8, 0] nElo H1, no-op in the default build): inference,
 - **Training:** `scripts/nnue/train.py prepare` then `train --epochs 40 --threads 10 --in-memory` with the defaults of `9f4ee92`: batch 16384, AdamW lr 1e-3 with cosine decay to 1e-5, weight decay 0, wdl 0.25, sigmoid scale as in the script, seed 1, 200,000 positions held out for validation. Final validation loss 0.006517 (epoch 1: 0.007002). CPU only (PyTorch 2.14.1+cpu). Paused after epoch 22 and resumed from `epoch022.pt` after a reboot, so a bit-identical rerun needs the same resume point (the shuffle RNG restarts on resume).
 - **Results:** SPRT vs HCE main [0, 10] nElo H1 (149.5/152, self-play exaggerates); gauntlet ~2875 vs SF 17 limited (table above).
 
-- Decided 2026-10-22: install PyTorch (CPU build, ~200 MB, in a venv) for training. Install when NNUE gen-0 starts (ROADMAP Phase 2), not while an SPRT is running.
-- Data generation: self-play at fixed nodes with randomized openings, adjudication, filtering
-- Architecture: 768→256→1, then scale to HalfKA-style king input buckets, output buckets, hidden layer 1024+, SCReLU
-- Quantized inference with SIMD (AVX2 only on target hardware)
-- Efficiently updated accumulators with lazy updates
-- Reinforcement loop: generate data → retrain → SPRT new net vs old → repeat
+- Decided 2026-10-22: PyTorch (CPU build, in a venv) for training.
+- Next: gen-1 data with the NNUE engine, wider first layer, king buckets, output buckets (docs/ROADMAP.md Phase 5).
 
-### Phase 4: Scaling
+### Scaling
 
 - SPSA tuning of search parameters
 - Lazy SMP multithreading
@@ -165,7 +152,7 @@ Merged 2026-10-22 (SPRT [-8, 0] nElo H1, no-op in the default build): inference,
 1. Changes not meant to alter behaviour must keep the bench signature; every signature change goes in CHANGELOG.md with a reason.
 2. `cargo test --release` (includes perft) must pass after every change.
 3. No heap allocations in movegen, make/unmake and search.
-4. Tasks in TASKS.md are `[LEAD]` (correctness/performance-critical) or `[DELEGATE]` (scripts, tests, CI, docs, refactors, with self-contained specs).
+4. Open tasks are in TASKS.md, labelled `[LEAD]` (correctness/performance-critical) or `[DELEGATE]` (scripts, tests, CI, docs, refactors, with self-contained specs).
 5. SPRT: gainers [0, 10] nElo, enablers/simplifications/speed-ups [−8, 0] nElo, cap 25,000 games (protocol from 2026-10-21 above); log all results above.
 6. One commit per completed milestone; delegate tasks on `task/<TASK-ID>` branches, reviewed by the lead before merging.
 7. Ask the user before any large architectural change.

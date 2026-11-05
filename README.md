@@ -1,57 +1,131 @@
 # Quant
 
-Quant is a UCI chess engine written from scratch in Rust. It has no dependencies, and its NNUE evaluation was trained only on Quant's own self-play games.
+A UCI-compatible chess engine written in Rust (edition 2021). Quant combines legal bitboard move generation, modern game-tree search, and NNUE evaluation. Built for local play, benchmarking, and engine development.
 
-- **Strength:** about <!-- ELO: from the v1.0 gauntlet --> Elo against Stockfish 17 with `UCI_LimitStrength`. This is an estimate, not a CCRL rating.
-- **Platforms:** Linux and Windows (x86-64), macOS (Apple Silicon). AVX2 is detected at run time; CPUs without it use scalar kernels, which give the same results at about half the speed.
+- **Strength:** about <!-- ELO: from the v1.0 gauntlet --> Elo. This is an estimate against Stockfish with limited Elo (`UCI_LimitStrength`), not an official rating.
+- **Platforms:** Linux and Windows (x86-64), macOS (Apple Silicon). AVX2 is detected at run time; CPUs without it use scalar inference with identical results at about half the speed.
 
 ## Download
 
-Prebuilt binaries are on the [releases page](https://github.com/scarcities/quant/releases). Quant speaks UCI, so you need a chess GUI such as Cute Chess, Arena, En Croissant or BanksiaGUI. Add the binary there as a UCI engine.
+Prebuilt binaries for Linux, Windows and macOS are on the [releases page](https://github.com/scarcities/quant/releases). Add the binary to a UCI chess GUI such as Cute Chess, Arena, En Croissant or BanksiaGUI.
 
-## Build from source
+## Layout
 
-Install Rust from https://rustup.rs, then:
-
+```text
+src/board/             board state, FEN, make/unmake, Zobrist hashing
+src/movegen/           legal move generation and magic bitboard attacks
+src/search/            search, evaluation, move ordering, time management
+src/nnue/              network loading, accumulators, AVX2/scalar inference
+src/uci/               UCI protocol and engine options
+src/perft/             move-generation validation and node counting
+src/bench/             reproducible engine benchmarks
+src/datagen/           self-play training data generation
+nets/                  bundled NNUE network
+scripts/nnue/          Python NNUE training tools
+harness/               black-box UCI/perft validation harness
+tests/                 integration and regression tests
+docs/                  platform notes, NNUE details, roadmap
 ```
-git clone https://github.com/scarcities/quant
-cd quant
+
+## Quickstart
+
+Requirements: a current stable Rust toolchain with Cargo.
+
+```bash
 cargo build --release
+cargo test --release
+./target/release/quant
 ```
 
-The binary is `target/release/quant`. The net in `nets/` is embedded at build time. To embed a different net, build with `EVALFILE=<path> cargo build --release`.
+The executable starts in **UCI mode**. In its terminal session, try:
+
+```text
+uci
+isready
+position startpos
+go depth 8
+quit
+```
+
+You can also connect `target/release/quant` to a UCI-compatible chess GUI.
 
 ## UCI options
 
 | Option | Default | Meaning |
 |---|---|---|
 | Hash | 16 | Transposition table size in MB (1–1024) |
-| Threads | 1 | Single-threaded for now |
+| Threads | 1 | Single search thread for now |
 | Move Overhead | 30 | Milliseconds held back per move for GUI and network lag |
-| EvalFile | `<embedded>` | Path to another `.nnue` net |
-| UseNNUE | true | `false` switches to the handcrafted evaluation |
+| EvalFile | `<embedded>` | Path to another `.nnue` network (NNUE builds) |
+| UseNNUE | true | `false` switches to the handcrafted evaluation (NNUE builds) |
 
-## Command line
+## Commands
 
+```bash
+./target/release/quant bench            # deterministic search benchmark
+./target/release/quant perft 6          # perft from the initial position
+./target/release/quant divide 4         # per-move perft breakdown
+./target/release/quant perft 4 "<FEN>"  # perft from a custom position
 ```
-quant              # UCI mode
-quant bench        # fixed search over standard positions; the node count is the bench signature
-quant perft <n>    # perft from the start position
+
+The node count printed by `bench` is the bench signature: it is the same on every platform, because the search and evaluation use no floating point.
+
+## Engine
+
+- **Move generation:** bitboards, magic sliding-piece attacks, pins, checks, castling, promotions, and en passant.
+- **Search:** principal variation search with iterative deepening, aspiration windows, a transposition table and quiescence search with SEE. Pruning and reductions: null move, reverse futility, futility, late move and SEE pruning, late move reductions. Check and singular extensions with multicut. Move ordering by killers, counter moves, butterfly and continuation history; pawn correction history for the static eval.
+- **Evaluation:** embedded NNUE network by default; handcrafted evaluation remains available.
+- **UCI:** supports standard engine communication, position setup, search commands, and runtime options.
+- **Validation:** Rust regression tests, perft suites, and an independent UCI test harness. Every search and evaluation feature after the first working search was tested by SPRT with fastchess before merging; failed tests are logged too ([AGENTS.md](AGENTS.md)).
+
+## NNUE
+
+The default release build embeds the network from `nets/`. To build with another network, set `EVALFILE` at build time:
+
+```bash
+EVALFILE=/path/to/network.nnue cargo build --release
 ```
 
-`go perft <n>` inside UCI prints a divide.
+To build with handcrafted evaluation only:
 
-## How it works
+```bash
+cargo build --release --no-default-features
+```
 
-- **Board:** bitboards with fancy magic slider attacks and fully legal move generation via check masks and pin rays. Move generation and the search allocate nothing on the heap.
-- **Search:** iterative deepening and principal variation search with aspiration windows. The transposition table, quiescence search and SEE are standard. Pruning and reductions include null move pruning, reverse futility pruning, futility pruning, late move pruning, SEE pruning and late move reductions. Search extends checks and singular moves, with multicut. Moves are ordered by killers, counter moves, butterfly history and continuation history. A pawn correction history adjusts the static eval.
-- **Evaluation:** a (768 → 256)x2 → 1 NNUE with SCReLU, quantised and updated incrementally, with AVX2 kernels. The search uses no floating point, so `bench` gives the same node count on every platform.
-- **Testing:** every search change was tested by SPRT with fastchess before it was merged, and failed tests were logged too. The log is in [AGENTS.md](AGENTS.md), and [CHANGELOG.md](CHANGELOG.md) lists every merged change with its bench signature.
+On CPUs without AVX2, NNUE uses scalar inference. Set `QUANT_NO_AVX2=1` to force that path when testing. UCI exposes `EvalFile` and `UseNNUE` in NNUE-enabled builds; `Threads` is currently limited to one search thread.
 
-## Training data
+### Training data
 
-The net was trained on 87.3 million positions from Quant's own self-play with its handcrafted evaluation, using Quant's own trainer (`scripts/nnue/train.py`). No Stockfish, Leela or other external data, evaluations, nets or tablebases were used. Details are in [docs/NNUE.md](docs/NNUE.md).
+The bundled network, a (768 → 256)x2 → 1 SCReLU net, was trained on 87.3 million positions from Quant's own self-play, scored by Quant's handcrafted-evaluation search, with Quant's own trainer (`scripts/nnue/train.py`). No Stockfish, Leela or other external data, evaluations, networks or tablebases were used. Details are in [docs/NNUE.md](docs/NNUE.md).
+
+## Testing
+
+```bash
+cargo test --release
+cargo test --release --no-default-features
+QUANT_NO_AVX2=1 cargo test --release
+cargo clippy --all-targets -- -D warnings
+python3 harness/perft.py --engine target/release/quant
+```
+
+The perft harness uses Python's standard library and tests the compiled engine through UCI. The NNUE training tools in `scripts/nnue/` have separate Python dependencies; see the NNUE documentation.
+
+## How Quant is developed
+
+Quant is developed with AI coding agents under the direction of Deniz. Deniz sets the goals, the test protocol and the release decisions; the agents write the code and run the tests. No change is merged without passing the test suite, and new search and evaluation features also have to pass an SPRT.
+
+## Documentation
+
+```text
+AGENTS.md              architecture, process rules, SPRT log
+TASKS.md               open tasks
+CHANGELOG.md           changes and benchmark history
+docs/NNUE.md           network format, inference, training
+docs/MACOS.md          macOS / Apple Silicon notes
+docs/ROADMAP.md        development roadmap
+harness/README.md      perft harness options and usage
+```
 
 ## License
 
-Quant, including the net in `nets/`, is free software under the GNU General Public License v3.0; see [LICENSE](LICENSE).
+Quant, including the network in `nets/`, is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. See [LICENSE](LICENSE).

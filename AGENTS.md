@@ -39,7 +39,7 @@ Invariants: no floating point in the search or eval (bench = cross-platform chec
   | 2026-10-17 | SF 17, UCI_Elo 2300 | 10+0.1 | 200 | 86.5 (43.3 %) | −47 ± 44 | ~2252 |
 
   NNUE gen-0 rows (gen-0 net, measured just before it became the default build): ~2875; probes 2600: 82.5 %, 2900: 42.5 %, 3190: 17.5 %. 2026-10-23 levels picked from 20-game probes (2600: 47.5 %, 2900: 10 %, 3190: 10 %). 2026-10-19 rows: ~2430. 2026-10-17 rows: after steps 1–4 only (~2150). Rerun: `scripts/elo_gauntlet.sh` with `LEVELS="2300 2600"`.
-- **Bench signature:** 953967 (default build, NNUE gen-0); 912599 with `--no-default-features` (handcrafted eval)
+- **Bench signature:** 929332 (default build, NNUE gen-0); 816618 with `--no-default-features` (handcrafted eval)
 - **Perft 6 startpos:** see CHANGELOG.md for nps (bulk and non-bulk).
 - **Roadmap:** docs/ROADMAP.md (integration plan). Phase 1 (search, steps 1.0–1.7) done 2026-10-23: all merged except TT buckets (1.2, H0 twice). Phase 2 NNUE gen-0: datagen 2026-10-23 07:48 → 2026-10-24 02:08 (87.3 M positions), training 40 epochs (paused 2026-10-24 09:02 → 2026-10-26 14:53, resumed from the epoch-22 checkpoint after a reboot), SPRT vs HCE H1 2026-10-26. NNUE gen-0 became the default build 2026-10-26 (2.4); next: Phase 3 of docs/ROADMAP.md.
 

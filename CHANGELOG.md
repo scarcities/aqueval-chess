@@ -4,6 +4,9 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### LMR package (bench 953967 → 929332; handcrafted build 912599 → 816618)
+- Cut-node flag through the search (reduced moves and null-window children of expected all-nodes are cut nodes). LMR reduces one ply more at cut nodes, one ply less at PV nodes or nodes with an exact TT entry (former PV), and by (butterfly + continuation history) / 8192 less or more. A reduced move that beats alpha is re-searched one ply deeper when it beats alpha by more than 40 + 2 · depth, one ply shallower when by less than 10.
+
 ### History tables kept across moves (bench unchanged, 953967 / 912599)
 - Killers, butterfly, continuation, counter-move and correction tables now live with the TT between `go` commands of a game instead of starting empty each move. At each new `go` butterfly and continuation history are halved and killers cleared. `ucinewgame`, a new Hash size and each datagen game start fresh. Bench searches every position with a fresh TT, so its signature does not change.
 

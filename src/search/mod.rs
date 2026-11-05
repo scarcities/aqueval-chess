@@ -262,6 +262,8 @@ fn alpha_beta(
     ply: usize,
     mut alpha: i32,
     beta: i32,
+    // Expected to fail high (null-window child of a node expected to fail low, or a reduced move).
+    cut_node: bool,
     ctx: &mut SearchContext,
 ) -> i32 {
     ctx.stats.nodes += 1;
@@ -345,7 +347,7 @@ fn alpha_beta(
         board.make_null_move();
         ctx.heur.null_at[ply] = true;
         ctx.heur.record(board, ply, Move::NULL);
-        let score = -alpha_beta(board, depth.saturating_sub(1 + r), ply + 1, -beta, -beta + 1, ctx);
+        let score = -alpha_beta(board, depth.saturating_sub(1 + r), ply + 1, -beta, -beta + 1, !cut_node, ctx);
         ctx.heur.null_at[ply] = false;
         board.unmake_null_move();
         if ctx.stop_flag.load(Ordering::Relaxed) {
@@ -382,6 +384,7 @@ fn alpha_beta(
     let mut best_move = Move::NULL;
     let mut best_score = -MATE_SCORE;
     let pv_node = beta - alpha > 1;
+    let was_pv = tt_entry.is_some_and(|e| e.bound == Bound::Exact);
     let mut tried_quiets = [Move::NULL; 64];
     let mut quiets_tried = 0;
     for (i, &m) in moves.as_slice().iter().enumerate() {
@@ -401,7 +404,7 @@ fn alpha_beta(
             {
                 let singular_beta = tt_score - 2 * depth as i32;
                 ctx.heur.excluded[ply] = m;
-                let v = alpha_beta(board, (depth - 1) / 2, ply, singular_beta - 1, singular_beta, ctx);
+                let v = alpha_beta(board, (depth - 1) / 2, ply, singular_beta - 1, singular_beta, cut_node, ctx);
                 ctx.heur.excluded[ply] = Move::NULL;
                 if ctx.stop_flag.load(Ordering::Relaxed) {
                     return 0;
@@ -416,6 +419,12 @@ fn alpha_beta(
             }
         }
         let quiet = !m.is_capture() && m.promotion_piece().is_none() && !ctx.heur.killers[ply].contains(&m);
+        let hist = if quiet {
+            ctx.heur.history[board.side_to_move.index()][m.from_sq() as usize][m.to_sq() as usize]
+                + ctx.heur.cont_score(board, ply, m)
+        } else {
+            0
+        };
         // Late move pruning: at shallow null-window nodes skip quiet moves after the first
         // (3 + depth²) / 2, or 3 + depth² when the position is improving.
         if prunable && depth <= 6 && quiet && alpha > -MATE_THRESHOLD && i >= (3 + depth * depth) / (2 - improving as usize) {
@@ -444,12 +453,16 @@ fn alpha_beta(
             continue;
         }
         // Late move reductions: quiet, non-checking moves late in the list get a shallower
-        // null-window search (log formula, one ply less at PV nodes).
+        // null-window search (log formula). One ply less at PV nodes and nodes that were PV
+        // (exact TT entry), one more at cut nodes, and less or more by the move's history.
         let mut reduction = 0;
         if depth >= 3 && i >= 3 && quiet && !in_check && !board.is_in_check() {
-            reduction = (lmr::reduction(depth, i) + !improving as usize).saturating_sub(pv_node as usize).min(depth - 2);
+            let r = lmr::reduction(depth, i) as i32 + !improving as i32 + cut_node as i32
+                - (pv_node || was_pv) as i32
+                - hist / 8192;
+            reduction = r.clamp(0, depth as i32 - 2) as usize;
         }
-        let score = pvs_child(board, depth - 1 + extension, ply + 1, alpha, beta, (i > 0).then_some(reduction), ctx);
+        let score = pvs_child(board, depth - 1 + extension, ply + 1, alpha, beta, (i > 0).then_some(reduction), cut_node, ctx);
         ctx.eval.unmake_move(board, m, &undo);
 
         if ctx.stop_flag.load(Ordering::Relaxed) {
@@ -503,6 +516,7 @@ fn alpha_beta(
 /// Principal variation search for one child (already made on `board`), from the parent's view:
 /// the first move gets the full window, later moves a null window that is re-searched
 /// only if it beats alpha.
+#[allow(clippy::too_many_arguments)] // all of it is per-call search state
 fn pvs_child(
     board: &mut Board,
     depth: usize,
@@ -511,18 +525,30 @@ fn pvs_child(
     beta: i32,
     // None: first move, full window. Some(r): later move, null window reduced by r plies.
     late: Option<usize>,
+    // The parent's cut-node flag.
+    cut_node: bool,
     ctx: &mut SearchContext,
 ) -> i32 {
     let Some(reduction) = late else {
-        return -alpha_beta(board, depth, ply, -beta, -alpha, ctx);
+        return -alpha_beta(board, depth, ply, -beta, -alpha, beta - alpha == 1 && !cut_node, ctx);
     };
-    let mut score = -alpha_beta(board, depth - reduction, ply, -alpha - 1, -alpha, ctx);
-    // A reduced move that beats alpha is re-searched at full depth first.
+    let mut score = -alpha_beta(board, depth - reduction, ply, -alpha - 1, -alpha, reduction > 0 || !cut_node, ctx);
+    // A reduced move that beats alpha is re-searched, one ply deeper if it beat alpha by a
+    // lot and one ply shallower if only just (unless that is the depth it already had).
     if score > alpha && reduction > 0 {
-        score = -alpha_beta(board, depth, ply, -alpha - 1, -alpha, ctx);
+        let d = if score > alpha + 40 + 2 * depth as i32 {
+            depth + 1
+        } else if score < alpha + 10 {
+            depth - 1
+        } else {
+            depth
+        };
+        if d > depth - reduction {
+            score = -alpha_beta(board, d, ply, -alpha - 1, -alpha, !cut_node, ctx);
+        }
     }
     if score > alpha && score < beta {
-        -alpha_beta(board, depth, ply, -beta, -alpha, ctx)
+        -alpha_beta(board, depth, ply, -beta, -alpha, false, ctx)
     } else {
         score
     }
@@ -741,7 +767,7 @@ pub fn search(
                 ctx.heur.eval_at[0] = if board.is_in_check() { NO_EVAL } else { ctx.eval.evaluate(board) };
                 ctx.heur.record(board, 0, m);
                 let undo = ctx.eval.make_move(board, m);
-                let score = pvs_child(board, search_depth - 1, 1, alpha, beta_w, (i > 0).then_some(0), &mut ctx);
+                let score = pvs_child(board, search_depth - 1, 1, alpha, beta_w, (i > 0).then_some(0), false, &mut ctx);
                 ctx.eval.unmake_move(board, m, &undo);
 
                 if stop_flag.load(Ordering::Relaxed) {

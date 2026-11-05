@@ -2,7 +2,7 @@
 
 Every merged change, with bench signature and nps where relevant. Measured on the reference machine (6 cores / 12 threads, AVX2), release build.
 
-## Unreleased
+## 1.0.0 (2026-11-05)
 
 ### v1.0 stability gauntlet and Hash tests (no code change, bench 953967)
 - Run on a cloud server with 16 dedicated vCPUs instead of the reference machine, with main `fa926fa` (NNUE gen-0), built and bench-checked there (953967). 3.7 (`r37-lmr`) failed its SPRT, so it is not in v1.0.

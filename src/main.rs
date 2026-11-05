@@ -4,7 +4,7 @@ use quant::board::Board;
 use quant::perft::{format_perft_divide, perft_divide, run_perft_timed};
 
 fn print_usage() {
-    println!("Quant Chess Engine v0.1.0");
+    println!("Quant Chess Engine v1.0.0");
     println!("Usage:");
     println!("  quant                                 # Starts interactive UCI loop");
     println!("  quant bench [depth]                   # Runs deterministic benchmark suite");

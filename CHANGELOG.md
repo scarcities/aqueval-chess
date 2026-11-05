@@ -4,6 +4,12 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### v1.0 stability gauntlet and Hash tests (no code change, bench 953967)
+- Run on a cloud server with 16 dedicated vCPUs instead of the reference machine, with main `fa926fa` (NNUE gen-0), built and bench-checked there (953967). 3.7 (`r37-lmr`) failed its SPRT, so it is not in v1.0.
+- Gauntlet vs SF 17, `UCI_LimitStrength` with UCI_Elo 2900, 60+0.6, Hash 16, concurrency 16, UHO_Lichess_4852_v1: 1000 games, 613.5 points (61.4 %), +80.3 ± 17.9 Elo, so about **2980**. Like the earlier gauntlets, this is an estimate against limited Stockfish, not a CCRL rating.
+- Hash 1, 16, 256 and 1024 MB: 200 games each at 10+0.1, main against itself at the same Hash, concurrency 15.
+- All 1800 games ended normally: no crashes, no time losses, no illegal moves. fastchess warned 151 times in the gauntlet that Quant's `bestmove` differed from the start of its last printed PV, a cosmetic message.
+
 ### History tables kept across moves (bench unchanged, 953967 / 912599)
 - Killers, butterfly, continuation, counter-move and correction tables now live with the TT between `go` commands of a game instead of starting empty each move. At each new `go` butterfly and continuation history are halved and killers cleared. `ucinewgame`, a new Hash size and each datagen game start fresh. Bench searches every position with a fresh TT, so its signature does not change.
 

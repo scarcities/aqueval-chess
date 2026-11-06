@@ -277,3 +277,22 @@ fn test_subprocess_low_time_bestmove_in_time() {
     assert!((start.elapsed().as_millis() as u64) < 300 + SLACK_MS);
     session.quit();
 }
+
+#[test]
+fn test_subprocess_bestmove_starts_last_pv() {
+    // In a fresh process, v1.0 changed its best move inside the depth-11 iteration that
+    // `go nodes 11000` aborts and sent bestmove without a matching info line (P2-04).
+    for nodes in [11000, 30000, 110500] {
+        let mut session = UciSession::start();
+        session.send("position startpos");
+        session.send(&format!("go nodes {nodes}"));
+        let (lines, bestmove) = session.read_until_bestmove();
+        session.quit();
+        let last_pv = lines
+            .iter()
+            .rev()
+            .find_map(|l| l.split(" pv ").nth(1))
+            .and_then(|pv| pv.split_whitespace().next());
+        assert_eq!(last_pv, bestmove.split_whitespace().next(), "go nodes {nodes}: bestmove must start the last PV");
+    }
+}

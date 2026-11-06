@@ -4,6 +4,11 @@ Until 2026-11-06 the engine was called Quant. Entries before the rename keep the
 
 Every merged change, with bench signature and nps where relevant. Measured on the reference machine (6 cores / 12 threads, AVX2), release build.
 
+## Unreleased
+
+### PV line for the best move of an aborted iteration (P2-04; bench unchanged, 953967)
+- When a stopped iteration changes the best move, the engine now prints an `info … pv` line for it before `bestmove`, so `bestmove` always starts the last PV (fastchess warned 151 times about this in the v1.0 gauntlet). Output only; the move played is the same as in 1.0.0.
+
 ## 1.0.0 (2026-11-06)
 
 ### Renamed to aqueval (bench unchanged, 953967 / 912599)

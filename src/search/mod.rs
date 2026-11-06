@@ -633,6 +633,20 @@ pub fn search_sync(
     search(board, limits, stop_flag, info_callback, &mut TranspositionTable::new(16))
 }
 
+fn report(info_callback: Option<&dyn Fn(&SearchInfo)>, depth: usize, score: i32, pv_move: Move, stats: &SearchStats) {
+    if let Some(callback) = info_callback {
+        let elapsed = stats.start_time.elapsed();
+        callback(&SearchInfo {
+            depth,
+            score_str: format_score(score),
+            nodes: stats.nodes,
+            nps: calculate_nps(stats.nodes, elapsed),
+            time_ms: elapsed.as_millis() as u64,
+            pv_move,
+        });
+    }
+}
+
 /// Iterative deepening search; `tt` persists between calls (UCI keeps it across moves).
 pub fn search(
     board: &mut Board,
@@ -785,6 +799,8 @@ pub fn search(
             if usable && depth_best_score > -32000 {
                 best_move = depth_best_move;
                 best_score = depth_best_score;
+                // The GUI expects bestmove to start the last reported PV.
+                report(info_callback, current_depth, best_score, best_move, &stats);
             }
             break;
         }
@@ -794,21 +810,7 @@ pub fn search(
         completed_depth = current_depth;
 
         let elapsed = stats.start_time.elapsed();
-        let elapsed_ms = elapsed.as_millis() as u64;
-        let nps = calculate_nps(stats.nodes, elapsed);
-        let score_str = format_score(best_score);
-
-        if let Some(callback) = info_callback {
-            let info = SearchInfo {
-                depth: current_depth,
-                score_str,
-                nodes: stats.nodes,
-                nps,
-                time_ms: elapsed_ms,
-                pv_move: best_move,
-            };
-            callback(&info);
-        }
+        report(info_callback, current_depth, best_score, best_move, &stats);
 
         // Check node limit
         if let Some(max_nodes) = limits.nodes {

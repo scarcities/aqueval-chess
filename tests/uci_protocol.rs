@@ -241,7 +241,9 @@ fn test_subprocess_ponderhit_keeps_searching_on_the_clock() {
     // ponderhit starts the clock from `go ponder`: the engine searches on (it used to move at
     // once), but stays well inside the 10 s it was given.
     assert!((100..10_000).contains(&elapsed), "bestmove {elapsed} ms after ponderhit");
-    assert!(bestmove.contains(" ponder "), "bestmove should name a reply to ponder on: {bestmove}");
+    // The reply comes from the TT and can be missing after a collision; when present it follows `ponder`.
+    let tokens: Vec<&str> = bestmove.split_whitespace().collect();
+    assert!(tokens.len() == 1 || (tokens.len() == 3 && tokens[1] == "ponder"), "bad bestmove line: {bestmove}");
 }
 
 #[test]

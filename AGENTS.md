@@ -157,7 +157,7 @@ Merged 2026-10-22 (SPRT [-8, 0] nElo H1, no-op in the default build): inference,
 1. Changes not meant to alter behaviour must keep the bench signature; every signature change goes in CHANGELOG.md with a reason.
 2. `cargo test --release` (includes perft) must pass after every change.
 3. No heap allocations in movegen, make/unmake and search.
-4. Open tasks are in TASKS.md, labelled `[LEAD]` (correctness/performance-critical) or `[DELEGATE]` (scripts, tests, CI, docs, refactors, with self-contained specs).
+4. Open tasks are in TASKS.md.
 5. SPRT: gainers [0, 10] nElo, enablers/simplifications/speed-ups [−8, 0] nElo, cap 25,000 games (protocol from 2026-10-21 above); log all results above.
-6. One commit per completed milestone; delegate tasks on `task/<TASK-ID>` branches, reviewed by the lead before merging.
+6. One commit per completed milestone.
 7. Ask the user before any large architectural change.

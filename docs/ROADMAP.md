@@ -1,10 +1,10 @@
 # Roadmap for aqueval chess: integrating researched ideas
 
-As of 2026-10-21, checked against `main` 44e7eea. Based on a research report on Elo gains measured in other engines (not part of this repository) and a read-only audit of the code. All ideas are described in our own words; no code from other engines is used.
+As of 2026-10-21, checked against `main` 32084f3. Based on a research report on Elo gains measured in other engines (not part of this repository) and a read-only audit of the code. All ideas are described in our own words; no code from other engines is used.
 
 **Summary.** First finish the running queue and fix three problems in the foundation that the audit found: the TT overwrites on every collision, repetitions only count as a draw inside the search on the third occurrence, and the search is fail-hard throughout. Then comes our own NNUE (generation 0), because it brings by far the most Elo per machine hour: roughly +150 to +300 Elo for about a day and a half of machine time, against about +5 Elo per search test. The large eval-independent search techniques (singular extensions, history pruning, the history package, a new capture history, ProbCut, the correction-history ladder) follow on top of the NNUE, so their margins sit on the right eval scale from the start. SPSA tuning comes after that. The test protocol switches to **[0, 10] nElo with a 25,000-game cap**; that is about [0, 5.8] in logistic Elo and almost twice as many tests per day as [0, 5] nElo, with hardly less Elo collected.
 
-**Reading guide.** Elo expectations are marked: **M** = measured in another engine (source in the report), **S** = our own estimate for aqueval chess. "nElo" is normalized Elo, the unit in which fastchess and `scripts/run_sprt.sh` (`model=normalized`) compute the bounds. For aqueval chess at STC with the UHO book, 1 Elo ≈ 1.73 nElo. Line references refer to `main` 44e7eea.
+**Reading guide.** Elo expectations are marked: **M** = measured in another engine (source in the report), **S** = our own estimate for aqueval chess. "nElo" is normalized Elo, the unit in which fastchess and `scripts/run_sprt.sh` (`model=normalized`) compute the bounds. For aqueval chess at STC with the UHO book, 1 Elo ≈ 1.73 nElo. Line references refer to `main` 32084f3.
 
 ## Test protocol from the test after IIR
 

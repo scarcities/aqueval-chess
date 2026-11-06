@@ -25,11 +25,11 @@ Invariants: no floating point in the search or eval (bench = cross-platform chec
 
 ## Current status
 
-- **Elo estimate (vs limited Stockfish):** ~2980, estimate against Stockfish 17 with UCI_Elo 2900 at 60+0.6 over 1000 games, not an official rating (2026-11-05, v1.0 = main `495df92` (`fa926fa` before the 2026-11-06 history cleanup), on a cloud server with 16 dedicated vCPUs; 0 crashes, time losses or illegal moves). Earlier: ~2875 (2026-10-26, NNUE gen-0 before the Phase 3 search changes), ~2560 (2026-10-23, handcrafted eval after docs/ROADMAP.md Phase 1). Approximation against Stockfish 17 with `UCI_LimitStrength`, not a CCRL rating; SF's Elo scale is calibrated at longer time controls, so levels disagree somewhat (here by ~70).
+- **Elo estimate (vs limited Stockfish):** ~2980, estimate against Stockfish 17 with UCI_Elo 2900 at 60+0.6 over 1000 games, not an official rating (2026-11-05, v1.0 = main `9cc1e5f`, on a cloud server with 16 dedicated vCPUs; 0 crashes, time losses or illegal moves). Earlier: ~2875 (2026-10-26, NNUE gen-0 before the Phase 3 search changes), ~2560 (2026-10-23, handcrafted eval after docs/ROADMAP.md Phase 1). Approximation against Stockfish 17 with `UCI_LimitStrength`, not a CCRL rating; SF's Elo scale is calibrated at longer time controls, so levels disagree somewhat (here by ~70).
 
   | Date | Opponent | TC | Games | Score | Elo diff | Implied aqueval chess Elo |
   |---|---|---|---|---|---|---|
-  | 2026-11-05 | SF 17, UCI_Elo 2900 (v1.0, `495df92`) | 60+0.6 | 1000 | 613.5 (61.4 %) | +80 ± 18 | ~2980 |
+  | 2026-11-05 | SF 17, UCI_Elo 2900 (v1.0, `9cc1e5f`) | 60+0.6 | 1000 | 613.5 (61.4 %) | +80 ± 18 | ~2980 |
   | 2026-10-26 | SF 17, UCI_Elo 2600 (NNUE gen-0 build) | 10+0.1 | 200 | 163.0 (81.5 %) | +258 ± 57 | ~2857 |
   | 2026-10-26 | SF 17, UCI_Elo 2900 (NNUE gen-0 build) | 10+0.1 | 200 | 97.5 (48.8 %) | −9 ± 35 | ~2891 |
   | 2026-10-23 | SF 17, UCI_Elo 2300 | 10+0.1 | 200 | 157.0 (78.5 %) | +225 ± 56 | ~2524 |
@@ -136,9 +136,9 @@ Merged 2026-10-22 (SPRT [-8, 0] nElo H1, no-op in the default build): inference,
 **Gen-0 net (default since 2026-10-26): `nets/aqueval-gen0-74884169.nnue`.**
 
 - **Training data provenance:** trained only on positions from aqueval chess's own self-play, scored by aqueval chess's own handcrafted-eval search and labelled with the results of those self-play games. No Stockfish, Leela or other external data, evaluations, nets or tablebases were used anywhere in data generation or training.
-- **Data:** `quant datagen --out ~/tools/nnue-data/hce1 --threads 10 --games 950000 --nodes 5000 --seed 1` (binary then named quant), run with the HCE build of `728d90f` (main after Phase 1). 950,000 games, 87,300,646 kept positions (~92 per game), filters and adjudication as in docs/NNUE.md. 2026-10-23 07:48 → 2026-10-24 02:08.
+- **Data:** `quant datagen --out ~/tools/nnue-data/hce1 --threads 10 --games 950000 --nodes 5000 --seed 1` (binary then named quant), run with the HCE build of `809fbd0` (main after Phase 1). 950,000 games, 87,300,646 kept positions (~92 per game), filters and adjudication as in docs/NNUE.md. 2026-10-23 07:48 → 2026-10-24 02:08.
 - **Architecture:** (768 → 256)x2 → 1, SCReLU, quantised as in docs/NNUE.md (QA/QB, bullet quantised.bin layout).
-- **Training:** `scripts/nnue/train.py prepare` then `train --epochs 40 --threads 10 --in-memory` with the defaults of `9f4ee92`: batch 16384, AdamW lr 1e-3 with cosine decay to 1e-5, weight decay 0, wdl 0.25, sigmoid scale as in the script, seed 1, 200,000 positions held out for validation. Final validation loss 0.006517 (epoch 1: 0.007002). CPU only (PyTorch 2.14.1+cpu). Paused after epoch 22 and resumed from `epoch022.pt` after a reboot, so a bit-identical rerun needs the same resume point (the shuffle RNG restarts on resume).
+- **Training:** `scripts/nnue/train.py prepare` then `train --epochs 40 --threads 10 --in-memory` with the defaults of `ad8c05e`: batch 16384, AdamW lr 1e-3 with cosine decay to 1e-5, weight decay 0, wdl 0.25, sigmoid scale as in the script, seed 1, 200,000 positions held out for validation. Final validation loss 0.006517 (epoch 1: 0.007002). CPU only (PyTorch 2.14.1+cpu). Paused after epoch 22 and resumed from `epoch022.pt` after a reboot, so a bit-identical rerun needs the same resume point (the shuffle RNG restarts on resume).
 - **Results:** SPRT vs HCE main [0, 10] nElo H1 (149.5/152, self-play exaggerates); gauntlet ~2875 vs SF 17 limited (table above).
 
 - Decided 2026-10-22: PyTorch (CPU build, in a venv) for training.

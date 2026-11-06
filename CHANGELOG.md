@@ -16,7 +16,7 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 - The net file is now `nets/aqueval-gen0-74884169.nnue` (same net, same sha256). `QUANT_NO_AVX2` is now `AQUEVAL_NO_AVX2`.
 
 ### v1.0 stability gauntlet and Hash tests (no code change, bench 953967)
-- Run on a cloud server with 16 dedicated vCPUs instead of the reference machine, with main `495df92` (`fa926fa` before the 2026-11-06 history cleanup) (NNUE gen-0), built and bench-checked there (953967). 3.7 (`r37-lmr`) failed its SPRT, so it is not in v1.0.
+- Run on a cloud server with 16 dedicated vCPUs instead of the reference machine, with main `9cc1e5f` (NNUE gen-0), built and bench-checked there (953967). 3.7 (`r37-lmr`) failed its SPRT, so it is not in v1.0.
 - Gauntlet vs SF 17, `UCI_LimitStrength` with UCI_Elo 2900, 60+0.6, Hash 16, concurrency 16, UHO_Lichess_4852_v1: 1000 games, 613.5 points (61.4 %), +80.3 ± 17.9 Elo, so about **2980**. Like the earlier gauntlets, this is an estimate against limited Stockfish, not a CCRL rating.
 - Hash 1, 16, 256 and 1024 MB: 200 games each at 10+0.1, main against itself at the same Hash, concurrency 15.
 - All 1800 games ended normally: no crashes, no time losses, no illegal moves. fastchess warned 151 times in the gauntlet that Quant's `bestmove` differed from the start of its last printed PV, a cosmetic message.

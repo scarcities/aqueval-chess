@@ -17,8 +17,8 @@ Xcode command line tools are needed for the linker; if `cargo` complains, run
 ## 2. Clone the repository
 
 ```
-git clone https://github.com/scarcities/aqueval
-cd aqueval
+git clone https://github.com/scarcities/aqueval-chess
+cd aqueval-chess
 ```
 
 The net `nets/aqueval-gen0-74884169.nnue` is part of the repository and is embedded at build time.

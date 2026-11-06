@@ -7,7 +7,7 @@ A UCI-compatible chess engine written in Rust (edition 2021). aqueval chess comb
 
 ## Download
 
-Prebuilt binaries for Linux, Windows and macOS are on the [releases page](https://github.com/scarcities/aqueval/releases). Add the binary to a UCI chess GUI such as Cute Chess, Arena, En Croissant or BanksiaGUI.
+Prebuilt binaries for Linux, Windows and macOS are on the [releases page](https://github.com/scarcities/aqueval-chess/releases). Add the binary to a UCI chess GUI such as Cute Chess, Arena, En Croissant or BanksiaGUI.
 
 ## Layout
 

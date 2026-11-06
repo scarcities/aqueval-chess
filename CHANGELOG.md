@@ -4,7 +4,7 @@ Until 2026-11-06 the engine was called Quant. Entries before the rename keep the
 
 Every merged change, with bench signature and nps where relevant. Measured on the reference machine (6 cores / 12 threads, AVX2), release build.
 
-## 1.0.0 (2026-11-05)
+## 1.0.0 (2026-11-06)
 
 ### Renamed to aqueval (bench unchanged, 953967 / 912599)
 - The project is now aqueval; the engine is aqueval chess and reports `id name aqueval 1.0.0` and `id author Deniz`. Crate and binary are `aqueval`, release archives `aqueval-<tag>-<platform>`.

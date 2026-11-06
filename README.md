@@ -110,10 +110,6 @@ python3 harness/perft.py --engine target/release/aqueval
 
 The perft harness uses Python's standard library and tests the compiled engine through UCI. The NNUE training tools in `scripts/nnue/` have separate Python dependencies; see the NNUE documentation.
 
-## How aqueval chess is developed
-
-aqueval chess is developed with AI coding agents under the direction of Deniz. Deniz sets the goals, the test protocol and the release decisions; the agents write the code and run the tests. No change is merged without passing the test suite, and new search and evaluation features also have to pass an SPRT.
-
 ## Documentation
 
 ```text

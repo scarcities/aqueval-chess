@@ -382,7 +382,7 @@ fn test_promotions_into_check_and_underpromotions() {
 // ============================================================================
 
 #[test]
-fn test_en_passant_adversarial_pins_and_checks() {
+fn test_en_passant_pins_and_checks() {
     // (a) En passant pins king horizontally (rank 4/5 pin)
     // White King on e5, White pawn on d5, Black pawn on c5, Black Rook on a5, Black King on h8.
     // e.p. square is c6. d5xc6 e.p. removes d5 and c5 pawns, opening a5 rook check on e5 king -> ILLEGAL!
@@ -582,7 +582,7 @@ impl SimpleRng {
 }
 
 #[test]
-fn test_adversarial_random_walk_perft_and_stability_cross_check() {
+fn test_random_walk_perft_and_stability_cross_check() {
     let mut rng = SimpleRng::new(0x42A5FE9B7301C84D);
 
     let test_seeds = [

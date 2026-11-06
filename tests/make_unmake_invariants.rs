@@ -147,7 +147,7 @@ fn verify_board_internal_invariants(board: &Board, msg_ctx: &str) {
 }
 
 #[test]
-fn test_adversarial_deep_random_walk_make_unmake_invariants() {
+fn test_deep_random_walk_make_unmake_invariants() {
     let test_fens = [
         ("startpos", "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"),
         ("kiwipete", "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"),
@@ -177,7 +177,7 @@ fn test_adversarial_deep_random_walk_make_unmake_invariants() {
             let initial_hash = board.zobrist_hash();
             let initial_clone = board.clone();
 
-            // Adversarially test EVERY legal branch at this ply
+            // Test every legal branch at this ply
             for &m in moves.as_slice() {
                 total_branches_tested += 1;
                 let undo = board.make_move(m);
@@ -227,7 +227,7 @@ fn test_adversarial_deep_random_walk_make_unmake_invariants() {
 }
 
 #[test]
-fn test_adversarial_deep_unmake_rewind() {
+fn test_deep_unmake_rewind() {
     let mut rng = SimpleRng::new(0x4299BEEF01234567);
     let mut board = Board::from_fen(
         "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
@@ -274,7 +274,7 @@ fn test_adversarial_deep_unmake_rewind() {
 }
 
 #[test]
-fn test_adversarial_threefold_repetition_exhaustive() {
+fn test_threefold_repetition_exhaustive() {
     let mut board = Board::startpos();
 
     // 1. Startpos repetition:
@@ -382,7 +382,7 @@ fn test_adversarial_threefold_repetition_exhaustive() {
 }
 
 #[test]
-fn test_adversarial_shakmaty_oracle_cross_check() {
+fn test_shakmaty_oracle_cross_check() {
     let mut rng = SimpleRng::new(0x9876543210FEDCBA);
 
     // Run 100 random games of 35 plies against Shakmaty reference oracle
@@ -467,7 +467,7 @@ fn test_adversarial_shakmaty_oracle_cross_check() {
 }
 
 #[test]
-fn test_adversarial_diagonal_en_passant_discovered_check() {
+fn test_diagonal_en_passant_discovered_check() {
     // White King on H1, Black Bishop on A8.
     // Pawns on E4 (White) and D5 (Black).
     // Diagonal A8-H1: A8(7,0), B7(6,1), C6(5,2), D5(4,3), E4(3,4), F3(2,5), G2(1,6), H1(0,7).
@@ -504,7 +504,7 @@ fn test_adversarial_diagonal_en_passant_discovered_check() {
 }
 
 #[test]
-fn test_adversarial_vertical_pinned_pawn_cannot_en_passant() {
+fn test_vertical_pinned_pawn_cannot_en_passant() {
     // White King on E1, White Pawn on E5, Black Rook on E8.
     // Black just played d7-d5, EP square is d6.
     // White Pawn on E5 is vertically pinned to E1 King.
@@ -527,7 +527,7 @@ fn test_adversarial_vertical_pinned_pawn_cannot_en_passant() {
 }
 
 #[test]
-fn test_adversarial_double_check_only_king_can_move() {
+fn test_double_check_only_king_can_move() {
     // White King on E1. Black Knight on D3 checks King, Black Rook on E8 checks King.
     // Double check!
     // White has a Bishop on C2 that could theoretically capture Knight on D3.

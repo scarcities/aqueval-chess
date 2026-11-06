@@ -90,7 +90,7 @@ fn test_standard_suite_bulk_vs_non_bulk_full_fidelity() {
 // ----------------------------------------------------------------------------
 
 #[test]
-fn test_adversarial_depth_zero_and_terminal_positions() {
+fn test_depth_zero_and_terminal_positions() {
     // 2.1 Startpos depth 0
     let mut startpos = Board::startpos();
     assert_eq!(perft(&mut startpos, 0), 1);
@@ -260,11 +260,11 @@ fn test_perft_divide_rigorous_oracle_invariants() {
 }
 
 // ----------------------------------------------------------------------------
-// 4. ADVERSARIAL TACTICAL POSITIONS (EP PINS, DISCOVERED CHECKS, DOUBLE CHECKS)
+// 4. TACTICAL POSITIONS (EP PINS, DISCOVERED CHECKS, DOUBLE CHECKS)
 // ----------------------------------------------------------------------------
 
 #[test]
-fn test_adversarial_tactical_positions_bulk_vs_non_bulk_and_divide() {
+fn test_tactical_positions_bulk_vs_non_bulk_and_divide() {
     let tactical_positions = [
         // EP horizontal pin: White King e5, White Pawn d5, Black Pawn c5, Black Rook a5, Black King h8
         ("EP Horizontal Pin (White)", "7k/8/8/r1pPK3/8/8/8/8 w - c6 0 1", 3),
@@ -338,7 +338,7 @@ fn test_adversarial_tactical_positions_bulk_vs_non_bulk_and_divide() {
 // ----------------------------------------------------------------------------
 
 #[test]
-fn test_adversarial_random_walk_divide_and_bulk_oracle() {
+fn test_random_walk_divide_and_bulk_oracle() {
     let mut rng = SimpleRng::new(0x1337BEEF98765432);
     let seeds = [
         POS_STARTPOS.fen,

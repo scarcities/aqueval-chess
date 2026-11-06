@@ -72,6 +72,8 @@ impl UciOptions {
         writeln!(writer, "option name Hash type spin default 16 min 1 max 1024")?;
         writeln!(writer, "option name Threads type spin default 1 min 1 max 1")?;
         writeln!(writer, "option name Move Overhead type spin default 30 min 0 max 5000")?;
+        // The GUI sends `go ponder` only when this is on; the engine needs no setting of its own.
+        writeln!(writer, "option name Ponder type check default false")?;
         #[cfg(feature = "nnue")]
         {
             writeln!(writer, "option name EvalFile type string default <embedded>")?;

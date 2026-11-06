@@ -129,7 +129,8 @@ fn test_position_fen_tactical_capture() {
     let (_, bestmove) = session.read_until_bestmove();
     session.quit();
 
-    assert_eq!(bestmove, "e2e5", "Engine must capture hanging queen with e2e5");
+    // The line may go on with `ponder <reply>`.
+    assert_eq!(bestmove.split_whitespace().next(), Some("e2e5"), "Engine must capture hanging queen with e2e5");
 }
 
 #[test]
@@ -227,25 +228,20 @@ fn test_subprocess_go_ponder_and_stop() {
 }
 
 #[test]
-fn test_subprocess_ponderhit_emits_bestmove() {
+fn test_subprocess_ponderhit_keeps_searching_on_the_clock() {
     let mut session = UciSession::start();
-    session.send("position startpos");
-    // Time limits make the search finish early and then wait; ponderhit must still move.
-    session.send("go ponder wtime 2000 btime 2000");
+    session.send("position startpos moves e2e4 e7e5");
+    session.send("go ponder wtime 10000 btime 10000");
     thread::sleep(Duration::from_millis(300));
+    let start = std::time::Instant::now();
     session.send("ponderhit");
-    session.send("isready");
-
-    let mut saw_bestmove = false;
-    loop {
-        let line = session.read_line();
-        saw_bestmove |= line.starts_with("bestmove ");
-        if line == "readyok" {
-            break;
-        }
-    }
+    let (_, bestmove) = session.read_until_bestmove();
+    let elapsed = start.elapsed().as_millis() as u64;
     session.quit();
-    assert!(saw_bestmove, "ponderhit must produce bestmove before readyok");
+    // ponderhit starts the clock from `go ponder`: the engine searches on (it used to move at
+    // once), but stays well inside the 10 s it was given.
+    assert!((100..10_000).contains(&elapsed), "bestmove {elapsed} ms after ponderhit");
+    assert!(bestmove.contains(" ponder "), "bestmove should name a reply to ponder on: {bestmove}");
 }
 
 #[test]

@@ -5,9 +5,9 @@ pub mod time;
 pub mod see;
 pub mod tt;
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use crate::board::Board;
 use crate::movegen::types::{Move, MoveList};
@@ -30,13 +30,59 @@ pub struct SearchLimits {
     pub soft_nodes: Option<u64>,
     pub time_limits: TimeLimits,
     pub infinite: bool,
-    pub ponder: bool,
+    /// Set by `go ponder`: the time limits only start counting at `ponderhit`.
+    pub ponder: Option<Arc<PonderState>>,
     pub searchmoves: Option<Vec<Move>>,
+}
+
+/// Shared between the UCI thread, which signals `ponderhit`, and the search.
+#[derive(Debug)]
+pub struct PonderState {
+    base: Instant,
+    /// Nanoseconds after `base` at which `ponderhit` arrived; `u64::MAX` while pondering.
+    hit_ns: AtomicU64,
+}
+
+impl Default for PonderState {
+    fn default() -> Self {
+        Self { base: Instant::now(), hit_ns: AtomicU64::new(u64::MAX) }
+    }
+}
+
+impl PonderState {
+    pub fn hit(&self) {
+        self.hit_ns.store(self.base.elapsed().as_nanos() as u64, Ordering::SeqCst);
+    }
+
+    fn pondering(&self) -> bool {
+        self.hit_ns.load(Ordering::Relaxed) == u64::MAX
+    }
+
+    /// Time since `ponderhit`, `None` while still pondering.
+    fn since_hit(&self) -> Option<Duration> {
+        let hit = self.hit_ns.load(Ordering::Relaxed);
+        (hit != u64::MAX).then(|| self.base.elapsed().saturating_sub(Duration::from_nanos(hit)))
+    }
+}
+
+/// Time that counts against the limits: from the start, or from `ponderhit` (none before it).
+fn time_used(limits: &SearchLimits, start: Instant) -> Option<Duration> {
+    match &limits.ponder {
+        Some(p) => p.since_hit(),
+        None => Some(start.elapsed()),
+    }
+}
+
+/// `go infinite` and a ponder search before `ponderhit` must not return until stopped.
+fn must_wait(limits: &SearchLimits) -> bool {
+    limits.infinite || limits.ponder.as_ref().is_some_and(|p| p.pondering())
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SearchResult {
     pub best_move: Move,
+    /// Expected reply from the TT, for `bestmove ... ponder ...`; `Move::NULL` if unknown.
+    pub ponder_move: Move,
     pub score: i32,
     pub depth: usize,
     pub nodes: u64,
@@ -613,7 +659,7 @@ fn should_stop(ctx: &SearchContext) -> bool {
         .limits
         .time_limits
         .hard_limit
-        .is_some_and(|hard| ctx.stats.start_time.elapsed() >= hard);
+        .is_some_and(|hard| time_used(ctx.limits, ctx.stats.start_time).is_some_and(|t| t >= hard));
     let out_of_nodes = ctx.limits.nodes.is_some_and(|max| ctx.stats.nodes >= max);
     if out_of_time || out_of_nodes {
         ctx.stop_flag.store(true, Ordering::Relaxed);
@@ -679,16 +725,15 @@ pub fn search(
             0
         };
 
-        // If infinite or ponder, wait for stop before returning
-        if limits.infinite || limits.ponder {
-            while !stop_flag.load(Ordering::Relaxed) {
-                std::thread::sleep(std::time::Duration::from_millis(5));
-            }
+        // If infinite or still pondering, wait for stop before returning
+        while must_wait(limits) && !stop_flag.load(Ordering::Relaxed) {
+            std::thread::sleep(std::time::Duration::from_millis(5));
         }
 
         tt.heur = Some(heur);
         return SearchResult {
             best_move: Move::NULL,
+            ponder_move: Move::NULL,
             score,
             depth: 0,
             nodes: 1,
@@ -809,7 +854,6 @@ pub fn search(
         best_score = depth_best_score;
         completed_depth = current_depth;
 
-        let elapsed = stats.start_time.elapsed();
         report(info_callback, current_depth, best_score, best_move, &stats);
 
         // Check node limit
@@ -825,26 +869,39 @@ pub fn search(
         // Soft time limit: start another iteration until it is used up; the hard limit stops
         // an iteration that runs long, and its best move so far is kept (see above).
         if let Some(soft) = limits.time_limits.soft_limit {
-            if elapsed >= soft {
+            if time_used(limits, stats.start_time).is_some_and(|t| t >= soft) {
                 break;
             }
         }
     }
 
-    // On infinite or ponder, wait until stop_flag is signaled before finishing
-    if limits.infinite || limits.ponder {
-        while !stop_flag.load(Ordering::Relaxed) {
-            std::thread::sleep(std::time::Duration::from_millis(5));
-        }
+    // On infinite, or while still pondering, wait until stop_flag is signaled before finishing
+    while must_wait(limits) && !stop_flag.load(Ordering::Relaxed) {
+        std::thread::sleep(std::time::Duration::from_millis(5));
     }
 
     tt.heur = Some(heur);
     SearchResult {
         best_move,
+        ponder_move: tt_reply(board, best_move, tt),
         score: best_score,
         depth: completed_depth,
         nodes: stats.nodes,
     }
+}
+
+/// The TT move of the position after `best`, if it is legal there.
+fn tt_reply(board: &mut Board, best: Move, tt: &TranspositionTable) -> Move {
+    if best == Move::NULL {
+        return Move::NULL;
+    }
+    let undo = board.make_move(best);
+    let reply = tt.probe(board.zobrist_hash, 0).map_or(Move::NULL, |e| e.mv);
+    let mut moves = MoveList::new();
+    board.generate_legal_moves(&mut moves);
+    let legal = reply != Move::NULL && moves.as_slice().contains(&reply);
+    board.unmake_move(best, &undo);
+    if legal { reply } else { Move::NULL }
 }
 
 /// Spawns an asynchronous search worker thread with `Arc<AtomicBool>` stop signal.

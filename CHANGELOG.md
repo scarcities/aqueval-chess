@@ -6,6 +6,11 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### Real pondering (P2-03; bench unchanged, 953967 / 912599)
+- `ponderhit` no longer stops the search and moves at once: the search goes on, and the time limits from `go ponder` start counting at `ponderhit`, so the time spent pondering is free. `stop` during pondering still answers at once.
+- `bestmove` now names the expected reply from the TT (`bestmove e2e4 ponder e7e5`), which GUIs and lichess-bot need to ponder at all. The engine announces `option name Ponder`.
+- Searches without `go ponder` are unchanged.
+
 ### PV line for the best move of an aborted iteration (P2-04; bench unchanged, 953967)
 - When a stopped iteration changes the best move, the engine now prints an `info … pv` line for it before `bestmove`, so `bestmove` always starts the last PV (fastchess warned 151 times about this in the v1.0 gauntlet). Output only; the move played is the same as in 1.0.0.
 

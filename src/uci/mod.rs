@@ -9,7 +9,7 @@ use crate::movegen::types::{Move, MoveList};
 use crate::perft::{format_perft_divide, perft_divide};
 use crate::search::time::TimeManager;
 use crate::search::tt::TranspositionTable;
-use crate::search::{search, SearchInfo, SearchLimits};
+use crate::search::{search, PonderState, SearchInfo, SearchLimits, SearchResult};
 use crate::uci::options::UciOptions;
 
 struct ActiveSearch {
@@ -17,8 +17,19 @@ struct ActiveSearch {
     is_pondering: Arc<AtomicBool>,
     _is_infinite: bool,
     best_move_emitted: Arc<AtomicBool>,
-    last_best_move: Arc<Mutex<Option<Move>>>,
+    last_result: Arc<Mutex<Option<SearchResult>>>,
+    /// Set for `go ponder`; `ponderhit` starts its clock.
+    ponder: Option<Arc<PonderState>>,
     thread_handle: Option<std::thread::JoinHandle<()>>,
+}
+
+/// `bestmove <move>`, plus `ponder <reply>` when the TT knows the expected reply.
+fn bestmove_line(result: Option<SearchResult>) -> String {
+    match result {
+        Some(r) if r.ponder_move != Move::NULL => format!("bestmove {} ponder {}", r.best_move.to_uci(), r.ponder_move.to_uci()),
+        Some(r) => format!("bestmove {}", r.best_move.to_uci()),
+        None => format!("bestmove {}", Move::NULL.to_uci()),
+    }
 }
 
 /// Tokenizes a line into whitespace-separated tokens, trimming leading/trailing whitespace.
@@ -199,7 +210,7 @@ fn parse_go(board: &Board, tokens: &[&str], move_overhead_ms: u64) -> ParsedGo {
             soft_nodes: None,
             time_limits,
             infinite,
-            ponder,
+            ponder: ponder.then(|| Arc::new(PonderState::default())),
             searchmoves,
         },
         perft_depth,
@@ -391,15 +402,16 @@ pub fn run_uci<R: BufRead, W: Write + Send + 'static>(mut reader: R, writer: Arc
                     let _ = w.flush();
                 } else {
                     let stop_flag = Arc::new(AtomicBool::new(false));
-                    let is_pondering = Arc::new(AtomicBool::new(parsed_go.limits.ponder));
+                    let is_pondering = Arc::new(AtomicBool::new(parsed_go.limits.ponder.is_some()));
+                    let ponder = parsed_go.limits.ponder.clone();
                     let is_infinite = parsed_go.limits.infinite;
                     let best_move_emitted = Arc::new(AtomicBool::new(false));
-                    let last_best_move = Arc::new(Mutex::new(None));
+                    let last_result = Arc::new(Mutex::new(None));
 
                     let thread_stop = stop_flag.clone();
                     let thread_pondering = is_pondering.clone();
                     let thread_emitted = best_move_emitted.clone();
-                    let thread_best_move = last_best_move.clone();
+                    let thread_result = last_result.clone();
                     let thread_writer = writer.clone();
                     let mut thread_board = board.clone();
                     let thread_limits = parsed_go.limits;
@@ -429,10 +441,7 @@ pub fn run_uci<R: BufRead, W: Write + Send + 'static>(mut reader: R, writer: Arc
                             &mut thread_tt.lock().unwrap(),
                         );
 
-                        {
-                            let mut bm = thread_best_move.lock().unwrap();
-                            *bm = Some(result.best_move);
-                        }
+                        *thread_result.lock().unwrap() = Some(result);
 
                         // On normal searches (not infinite and not ponder), emit bestmove immediately
                         if !is_infinite
@@ -440,7 +449,7 @@ pub fn run_uci<R: BufRead, W: Write + Send + 'static>(mut reader: R, writer: Arc
                             && !thread_emitted.swap(true, Ordering::SeqCst)
                         {
                             let mut w = thread_writer.lock().unwrap();
-                            let _ = writeln!(w, "bestmove {}", result.best_move.to_uci());
+                            let _ = writeln!(w, "{}", bestmove_line(Some(result)));
                             let _ = w.flush();
                         }
                     });
@@ -450,14 +459,22 @@ pub fn run_uci<R: BufRead, W: Write + Send + 'static>(mut reader: R, writer: Arc
                         is_pondering,
                         _is_infinite: is_infinite,
                         best_move_emitted,
-                        last_best_move,
+                        last_result,
+                        ponder,
                         thread_handle: Some(handle),
                     });
                 }
             }
-            // shortcut: ponderhit ends the search and moves at once instead of switching to
-            // normal time control; upgrade when the Phase 2 search gets real ponder handling.
-            "stop" | "ponderhit" => {
+            // The opponent played the expected move: keep searching, now on the clock from `go ponder`.
+            "ponderhit" => {
+                if let Some(active) = &active_search {
+                    if let Some(p) = &active.ponder {
+                        active.is_pondering.store(false, Ordering::SeqCst);
+                        p.hit();
+                    }
+                }
+            }
+            "stop" => {
                 if let Some(mut active) = active_search.take() {
                     active.is_pondering.store(false, Ordering::SeqCst);
                     active.stop_flag.store(true, Ordering::SeqCst);
@@ -465,13 +482,9 @@ pub fn run_uci<R: BufRead, W: Write + Send + 'static>(mut reader: R, writer: Arc
                         let _ = h.join();
                     }
                     if !active.best_move_emitted.swap(true, Ordering::SeqCst) {
-                        let m = active
-                            .last_best_move
-                            .lock()
-                            .unwrap()
-                            .unwrap_or(Move::NULL);
+                        let r = *active.last_result.lock().unwrap();
                         let mut w = writer.lock().unwrap();
-                        let _ = writeln!(w, "bestmove {}", m.to_uci());
+                        let _ = writeln!(w, "{}", bestmove_line(r));
                         let _ = w.flush();
                     }
                 }

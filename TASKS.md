@@ -8,7 +8,6 @@ Status: `todo`, `in progress`, `review`. Finished tasks are removed; CHANGELOG.m
 |---|---|---|
 | P2-01 | Only set the EP square/hash key when an enemy pawn can actually capture | todo |
 | P2-02 | `unmake_move` pops its `UndoState` from history instead of taking it as a parameter | todo |
-| P2-03 | Real ponder: on `ponderhit` switch to normal time control instead of moving at once | todo |
 
 ## Phase 3 — NNUE (see docs/NNUE.md)
 

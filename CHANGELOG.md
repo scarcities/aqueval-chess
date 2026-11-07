@@ -6,6 +6,12 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### Time management: best-move stability, single legal move, half-clock cap (bench unchanged, 953967 / 912599)
+- From depth 6 the soft limit scales with how many iterations in a row kept the same best move: 250 %, 120 %, 90 %, 80 %, 75 % (never above the hard limit). A best move that keeps changing gets more time, a settled one less.
+- With one legal move the engine answers after the first iteration.
+- One move never takes more than half the remaining time (was 80 %), so low clocks with an increment no longer spiral.
+- SPRT at 20+0.2 vs main: H1, +11.3 ± 8.1 (nElo +18.3 ± 13.1), 2712 games, 0 time losses (cloud server, 16 dedicated vCPUs). Bench searches to a fixed depth, so its signature does not change.
+
 ### Real pondering (P2-03; bench unchanged, 953967 / 912599)
 - `ponderhit` no longer stops the search and moves at once: the search goes on, and the time limits from `go ponder` start counting at `ponderhit`, so the time spent pondering is free. `stop` during pondering still answers at once.
 - `bestmove` now names the expected reply from the TT (`bestmove e2e4 ponder e7e5`), which GUIs and lichess-bot need to ponder at all. The engine announces `option name Ponder`.

@@ -52,9 +52,9 @@ impl TimeManager {
             // Base allocation per move
             let base = (remaining / moves) + (inc * 3 / 4);
 
-            // Safety cap: the hard limit never exceeds 80% of the remaining time,
-            // whatever the increment or movestogo say.
-            let max_alloc = (remaining * 8 / 10).max(1);
+            // Safety cap: one move never takes more than half the remaining time,
+            // whatever the increment or movestogo say (low clocks would otherwise spiral).
+            let max_alloc = (remaining / 2).max(1);
 
             let soft_ms = (base * 8 / 10).min(max_alloc).max(1);
             let hard_ms = (base * 3).min(max_alloc).max(soft_ms);
@@ -104,6 +104,14 @@ mod tests {
         );
         assert!(limits.soft_limit.is_some());
         assert!(limits.hard_limit.is_some());
+        assert!(limits.soft_limit.unwrap() <= limits.hard_limit.unwrap());
+    }
+
+    #[test]
+    fn test_low_clock_caps_at_half() {
+        // 8 s left with a 3 s increment: base is about 3.4 s, so 3·base would take 10 s
+        let limits = TimeManager::calculate_limits(Color::White, Some(8000), Some(8000), Some(3000), Some(3000), None, None);
+        assert_eq!(limits.hard_limit, Some(Duration::from_millis(4000)));
         assert!(limits.soft_limit.unwrap() <= limits.hard_limit.unwrap());
     }
 

@@ -19,6 +19,10 @@ use crate::search::time::TimeLimits;
 use crate::search::see::see_ge;
 use crate::search::tt::{Bound, TranspositionTable};
 
+/// Soft limit in percent by how many iterations in a row kept the same best move (from depth 6):
+/// a changing best move gets more time (up to the hard limit), a settled one less.
+const STABILITY_PCT: [u32; 5] = [250, 120, 90, 80, 75];
+
 pub const MATE_SCORE: i32 = 30000;
 pub const MATE_THRESHOLD: i32 = 25000;
 
@@ -760,6 +764,7 @@ pub fn search(
     let mut best_move = candidate_moves[0];
     let mut best_score = -MATE_SCORE;
     let mut completed_depth = 0;
+    let mut stable = 0usize;
 
     let max_depth = limits.depth.unwrap_or(64);
 
@@ -850,6 +855,7 @@ pub fn search(
             break;
         }
 
+        stable = if current_depth > 1 && depth_best_move == best_move { (stable + 1).min(4) } else { 0 };
         best_move = depth_best_move;
         best_score = depth_best_score;
         completed_depth = current_depth;
@@ -869,6 +875,12 @@ pub fn search(
         // Soft time limit: start another iteration until it is used up; the hard limit stops
         // an iteration that runs long, and its best move so far is kept (see above).
         if let Some(soft) = limits.time_limits.soft_limit {
+            // Only one legal move: nothing to think about once a move is known.
+            if candidate_moves.len() == 1 {
+                break;
+            }
+            let soft = if current_depth >= 6 { soft * STABILITY_PCT[stable] / 100 } else { soft };
+            let soft = limits.time_limits.hard_limit.map_or(soft, |hard| soft.min(hard));
             if time_used(limits, stats.start_time).is_some_and(|t| t >= soft) {
                 break;
             }

@@ -122,6 +122,7 @@ Run with `scripts/run_sprt.sh`, one test at a time, fastchess concurrency 10 (2 
 | History pruning at −1000·depth, the one variation (vs history kept across go) | [0, 10] nElo | H0 accepted | −15.5 ± 12.7 (nElo −23.7 ± 19.4) | 1236 |
 | Capture history package: SEE threshold + caphist/128, ordering 16·victim + caphist, malus for every capture tried before a cutoff (vs history kept across go) | [0, 10] nElo | H0 accepted | −2.14 ± 6.97 (nElo −3.15 ± 10.28) | 4390 |
 | LMR package: cut-node flag (+1), PV or exact-TT node (−1), history/8192, deeper/shallower re-search (vs history kept across go) | [0, 10] nElo | H0 accepted; 7 time losses new, 11 base (first SPRT with any; a training job shared the machine) | −1.53 ± 6.61 (nElo −2.23 ± 9.63) | 4998 |
+| Time management at 20+0.2: soft limit × best-move stability (250/120/90/80/75 % from depth 6), single legal move answers at once, one move ≤ half the clock (vs main `a68ff26`; cloud server, 16 dedicated vCPUs, concurrency 15) | [0, 10] nElo | H1 accepted, 0 time losses | +11.28 ± 8.08 (nElo +18.27 ± 13.08) | 2712 |
 
 **Stop rule hit 2026-11-05:** the stop rule applies after three failures in a row, and 3.5, 3.6 and 3.7 (LMR package, H0) failed in a row. The feature queue pauses until after the v1.0 release; then the next steps are decided.
 
@@ -149,7 +150,7 @@ Merged 2026-10-22 (SPRT [-8, 0] nElo H1, no-op in the default build): inference,
 - SPSA tuning of search parameters
 - Lazy SMP multithreading
 - Syzygy tablebase probing
-- Time management refinement: node-based scaling, best-move stability, eval instability
+- Time management refinement: node-based scaling, eval instability (best-move stability merged 2026-11-07)
 - Submit to CCRL once stable
 
 ## Process rules

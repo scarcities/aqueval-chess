@@ -277,6 +277,20 @@ fn test_subprocess_low_time_bestmove_in_time() {
 }
 
 #[test]
+fn test_subprocess_single_legal_move_answers_at_once() {
+    let mut session = UciSession::start();
+    // White is in check from the rook on a1 and Kh2 is the only move.
+    session.send("position fen 7k/8/8/8/8/8/6P1/r6K w - - 0 1");
+    let start = std::time::Instant::now();
+    session.send("go wtime 60000 btime 60000");
+    let (_, bestmove) = session.read_until_bestmove();
+    let elapsed = start.elapsed().as_millis() as u64;
+    session.quit();
+    assert_eq!(bestmove.split_whitespace().next(), Some("h1h2"));
+    assert!(elapsed < 500, "single legal move took {elapsed} ms");
+}
+
+#[test]
 fn test_subprocess_bestmove_starts_last_pv() {
     // In a fresh process, v1.0 changed its best move inside the depth-11 iteration that
     // `go nodes 11000` aborts and sent bestmove without a matching info line (P2-04).

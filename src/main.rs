@@ -4,7 +4,7 @@ use aqueval::board::Board;
 use aqueval::perft::{format_perft_divide, perft_divide, run_perft_timed};
 
 fn print_usage() {
-    println!("aqueval chess v1.0.0");
+    println!("aqueval chess v{}", env!("CARGO_PKG_VERSION"));
     println!("Usage:");
     println!("  aqueval                                 # Starts interactive UCI loop");
     println!("  aqueval bench [depth]                   # Runs deterministic benchmark suite");

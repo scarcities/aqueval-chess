@@ -83,7 +83,7 @@ impl UciSession {
 #[test]
 fn test_uci_handshake() {
     let out = run_uci_in_process("uci\nquit\n");
-    assert!(out.contains("id name aqueval 1.0.0"), "Missing engine name: {out}");
+    assert!(out.contains(concat!("id name aqueval ", env!("CARGO_PKG_VERSION"))), "Missing engine name: {out}");
     assert!(out.contains("id author Deniz"), "Missing author: {out}");
     assert!(out.contains("option name Hash"), "Missing Hash option: {out}");
     assert!(out.contains("option name Threads"), "Missing Threads option: {out}");

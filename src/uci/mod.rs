@@ -334,7 +334,7 @@ pub fn run_uci<R: BufRead, W: Write + Send + 'static>(mut reader: R, writer: Arc
         match cmd {
             "uci" => {
                 let mut w = writer.lock().unwrap();
-                let _ = writeln!(w, "id name aqueval 1.0.0");
+                let _ = writeln!(w, "id name aqueval {}", env!("CARGO_PKG_VERSION"));
                 let _ = writeln!(w, "id author Deniz");
                 let _ = options.print_options(&mut *w);
                 let _ = writeln!(w, "uciok");

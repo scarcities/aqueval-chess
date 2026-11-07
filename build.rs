@@ -5,7 +5,7 @@
 use std::{env, fs, path::PathBuf};
 
 /// Net embedded by default; CHANGELOG.md records which net each build uses.
-const DEFAULT_NET: &str = "nets/aqueval-gen0-74884169.nnue";
+const DEFAULT_NET: &str = "nets/aqueval-gen1-7ae6f8c0.nnue";
 
 fn main() {
     println!("cargo:rerun-if-env-changed=EVALFILE");

@@ -6,6 +6,11 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## Unreleased
 
+### NNUE gen-1 net as default (bench 953967 → 680520; handcrafted build unchanged, 912599)
+- `nets/aqueval-gen1-7ae6f8c0.nnue` replaces gen-0 as the embedded net: same architecture and training settings, trained on 104.6 M positions from 1.03 M games of gen-0 self-play (seed 2, 5000 nodes). Details in AGENTS.md (NNUE).
+- SPRT vs gen-0 at 8+0.08, both on main `a68ff26`: H1, +294 ± 47 (nElo +501 ± 51), 180 games, 0 time losses. Self-play exaggerates; no gauntlet yet.
+- The gen-0 net stays in `nets/`; `EVALFILE=nets/aqueval-gen0-74884169.nnue` builds the old one.
+
 ### Time management: best-move stability, single legal move, half-clock cap (bench unchanged, 953967 / 912599)
 - From depth 6 the soft limit scales with how many iterations in a row kept the same best move: 250 %, 120 %, 90 %, 80 %, 75 % (never above the hard limit). A best move that keeps changing gets more time, a settled one less.
 - With one legal move the engine answers after the first iteration.

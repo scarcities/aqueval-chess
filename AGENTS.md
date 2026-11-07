@@ -40,7 +40,7 @@ Invariants: no floating point in the search or eval (bench = cross-platform chec
   | 2026-10-17 | SF 17, UCI_Elo 2300 | 10+0.1 | 200 | 86.5 (43.3 %) | −47 ± 44 | ~2252 |
 
   NNUE gen-0 rows (gen-0 net, measured just before it became the default build): ~2875; probes 2600: 82.5 %, 2900: 42.5 %, 3190: 17.5 %. 2026-10-23 levels picked from 20-game probes (2600: 47.5 %, 2900: 10 %, 3190: 10 %). 2026-10-19 rows: ~2430. 2026-10-17 rows: after steps 1–4 only (~2150). Rerun: `scripts/elo_gauntlet.sh` with `LEVELS="2300 2600"`.
-- **Bench signature:** 953967 (default build, NNUE gen-0); 912599 with `--no-default-features` (handcrafted eval)
+- **Bench signature:** 680520 (default build, NNUE gen-1); 912599 with `--no-default-features` (handcrafted eval)
 - **Perft 6 startpos:** see CHANGELOG.md for nps (bulk and non-bulk).
 - **Roadmap:** docs/ROADMAP.md (integration plan). Phase 1 (search, steps 1.0–1.7) done 2026-10-23: all merged except TT buckets (1.2, H0 twice). Phase 2 NNUE gen-0: datagen 2026-10-23 07:48 → 2026-10-24 02:08 (87.3 M positions), training 40 epochs (paused 2026-10-24 09:02 → 2026-10-26 14:53, resumed from the epoch-22 checkpoint after a reboot), SPRT vs HCE H1 2026-10-26. NNUE gen-0 became the default build 2026-10-26 (2.4); next: Phase 3 of docs/ROADMAP.md.
 
@@ -123,6 +123,7 @@ Run with `scripts/run_sprt.sh`, one test at a time, fastchess concurrency 10 (2 
 | Capture history package: SEE threshold + caphist/128, ordering 16·victim + caphist, malus for every capture tried before a cutoff (vs history kept across go) | [0, 10] nElo | H0 accepted | −2.14 ± 6.97 (nElo −3.15 ± 10.28) | 4390 |
 | LMR package: cut-node flag (+1), PV or exact-TT node (−1), history/8192, deeper/shallower re-search (vs history kept across go) | [0, 10] nElo | H0 accepted; 7 time losses new, 11 base (first SPRT with any; a training job shared the machine) | −1.53 ± 6.61 (nElo −2.23 ± 9.63) | 4998 |
 | Time management at 20+0.2: soft limit × best-move stability (250/120/90/80/75 % from depth 6), single legal move answers at once, one move ≤ half the clock (vs main `a68ff26`; cloud server, 16 dedicated vCPUs, concurrency 15) | [0, 10] nElo | H1 accepted, 0 time losses | +11.28 ± 8.08 (nElo +18.27 ± 13.08) | 2712 |
+| NNUE gen-1 net (same architecture and training settings, 104.6 M positions from gen-0 self-play) vs gen-0, both on main `a68ff26`, 8+0.08 (cloud server, 16 dedicated vCPUs, concurrency 15) | [0, 10] nElo | H1 accepted, 0 time losses | +293.9 ± 46.9 (nElo +500.6 ± 50.8); 152/180, no lost game pair, self-play exaggerates | 180 |
 
 **Stop rule hit 2026-11-05:** the stop rule applies after three failures in a row, and 3.5, 3.6 and 3.7 (LMR package, H0) failed in a row. The feature queue pauses until after the v1.0 release; then the next steps are decided.
 
@@ -134,7 +135,14 @@ The step-by-step plan is docs/ROADMAP.md. Done so far: its Phases 1–2 and Phas
 
 Merged 2026-10-22 (SPRT [-8, 0] nElo H1, no-op in the default build): inference, search integration behind the `nnue` feature, `aqueval datagen`, own trainer, netviz loader. Plan, architecture, file format and training steps: docs/NNUE.md.
 
-**Gen-0 net (default since 2026-10-26): `nets/aqueval-gen0-74884169.nnue`.**
+**Gen-1 net (default since 2026-11-07): `nets/aqueval-gen1-7ae6f8c0.nnue`** (sha256 `7ae6f8c049a2639a0d4d58e48a675d5682eff8bf65205ab6e2d0c560b116c322`).
+
+- **Training data provenance:** as for gen-0: only aqueval chess's own self-play, now scored by the NNUE gen-0 engine. No external data, evaluations, nets or tablebases.
+- **Data:** `aqueval datagen --out ~/tools/nnue-data/gen1 --threads 10 --games 1030000 --nodes 5000 --seed 2` with the v1.0.0 NNUE gen-0 build (bench 953967). 1,030,000 games, 104,609,306 kept positions (~102 per game). 2026-11-06 15:17 → 2026-11-07 16:55.
+- **Architecture and training:** unchanged from gen-0 ((768 → 256)x2 → 1 SCReLU; `train.py train --epochs 40 --in-memory` with the same defaults and seed 1), but on one RTX 4090 (cloud, PyTorch 2.8.0+cu128, `--threads 16`): ~2.9 M positions/s, 36 s per epoch. Final validation loss 0.005985 (epoch 1: 0.006646; not comparable with gen-0's, other data).
+- **Results:** SPRT vs gen-0 [0, 10] nElo H1, +294 ± 47 after 180 games (152/180, self-play exaggerates). No gauntlet against Stockfish yet.
+
+**Gen-0 net (default 2026-10-26 → 2026-11-07): `nets/aqueval-gen0-74884169.nnue`** (kept in `nets/`).
 
 - **Training data provenance:** trained only on positions from aqueval chess's own self-play, scored by aqueval chess's own handcrafted-eval search and labelled with the results of those self-play games. No Stockfish, Leela or other external data, evaluations, nets or tablebases were used anywhere in data generation or training.
 - **Data:** `quant datagen --out ~/tools/nnue-data/hce1 --threads 10 --games 950000 --nodes 5000 --seed 1` (binary then named quant), run with the HCE build of `809fbd0` (main after Phase 1). 950,000 games, 87,300,646 kept positions (~92 per game), filters and adjudication as in docs/NNUE.md. 2026-10-23 07:48 → 2026-10-24 02:08.
@@ -143,7 +151,7 @@ Merged 2026-10-22 (SPRT [-8, 0] nElo H1, no-op in the default build): inference,
 - **Results:** SPRT vs HCE main [0, 10] nElo H1 (149.5/152, self-play exaggerates); gauntlet ~2875 vs SF 17 limited (table above).
 
 - Decided 2026-10-22: PyTorch (CPU build, in a venv) for training.
-- Next: gen-1 data with the NNUE engine, wider first layer, king buckets, output buckets (docs/ROADMAP.md Phase 5).
+- Next: wider first layer, king buckets, output buckets, gen-2 data with the gen-1 engine (docs/ROADMAP.md Phase 5). Training on a rented GPU takes ~25 min instead of ~15 h on the reference CPU.
 
 ### Scaling
 

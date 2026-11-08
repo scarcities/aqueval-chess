@@ -125,6 +125,7 @@ Run with `scripts/run_sprt.sh`, one test at a time, fastchess concurrency 10 (2 
 | LMR package: cut-node flag (+1), PV or exact-TT node (−1), history/8192, deeper/shallower re-search (vs history kept across go) | [0, 10] nElo | H0 accepted; 7 time losses new, 11 base (first SPRT with any; a training job shared the machine) | −1.53 ± 6.61 (nElo −2.23 ± 9.63) | 4998 |
 | Time management at 20+0.2: soft limit × best-move stability (250/120/90/80/75 % from depth 6), single legal move answers at once, one move ≤ half the clock (vs main `a68ff26`; cloud server, 16 dedicated vCPUs, concurrency 15) | [0, 10] nElo | H1 accepted, 0 time losses | +11.28 ± 8.08 (nElo +18.27 ± 13.08) | 2712 |
 | NNUE gen-1 net (same architecture and training settings, 104.6 M positions from gen-0 self-play) vs gen-0, both on main `a68ff26`, 8+0.08 (cloud server, 16 dedicated vCPUs, concurrency 15) | [0, 10] nElo | H1 accepted, 0 time losses | +293.9 ± 46.9 (nElo +500.6 ± 50.8); 152/180, no lost game pair, self-play exaggerates | 180 |
+| Time management: movestogo 40 instead of 25 when the GUI sends none, at 20+0.2 (branch `r39-mtg`, vs main v1.1 `e66a227`; reference machine, concurrency 10) | [0, 10] nElo | H0 accepted, 0 time losses | −16.60 ± 12.13 (nElo −28.57 ± 20.84) | 1068 |
 
 **Stop rule hit 2026-11-05:** the stop rule applies after three failures in a row, and 3.5, 3.6 and 3.7 (LMR package, H0) failed in a row. The feature queue pauses until after the v1.0 release; then the next steps are decided.
 

@@ -25,10 +25,11 @@ Invariants: no floating point in the search or eval (bench = cross-platform chec
 
 ## Current status
 
-- **Elo estimate (vs limited Stockfish):** ~2980, estimate against Stockfish 17 with UCI_Elo 2900 at 60+0.6 over 1000 games, not an official rating (2026-11-05, v1.0 = main `9cc1e5f`, on a cloud server with 16 dedicated vCPUs; 0 crashes, time losses or illegal moves). Earlier: ~2875 (2026-10-26, NNUE gen-0 before the Phase 3 search changes), ~2560 (2026-10-23, handcrafted eval after docs/ROADMAP.md Phase 1). Approximation against Stockfish 17 with `UCI_LimitStrength`, not a CCRL rating; SF's Elo scale is calibrated at longer time controls, so levels disagree somewhat (here by ~70).
+- **Elo estimate (vs limited Stockfish):** ~3120, estimate against Stockfish 17 with UCI_Elo 3190 at 60+0.6 over 1000 games, not an official rating (2026-11-08, v1.1 = main `bb52cdb`: NNUE gen-1 and the new time management, on the reference machine, concurrency 10; 0 crashes, time losses or illegal moves). Earlier: ~2980 (2026-11-05, v1.0 = main `9cc1e5f`, vs UCI_Elo 2900 on a cloud server with 16 dedicated vCPUs), ~2875 (2026-10-26, NNUE gen-0 before the Phase 3 search changes), ~2560 (2026-10-23, handcrafted eval after docs/ROADMAP.md Phase 1). Approximation against Stockfish 17 with `UCI_LimitStrength`, not a CCRL rating; SF's Elo scale is calibrated at longer time controls, so levels disagree somewhat (here by ~70).
 
   | Date | Opponent | TC | Games | Score | Elo diff | Implied aqueval chess Elo |
   |---|---|---|---|---|---|---|
+  | 2026-11-08 | SF 17, UCI_Elo 3190 (v1.1, `bb52cdb`) | 60+0.6 | 1000 | 400.0 (40.0 %) | −70 ± 15 | ~3119 |
   | 2026-11-05 | SF 17, UCI_Elo 2900 (v1.0, `9cc1e5f`) | 60+0.6 | 1000 | 613.5 (61.4 %) | +80 ± 18 | ~2980 |
   | 2026-10-26 | SF 17, UCI_Elo 2600 (NNUE gen-0 build) | 10+0.1 | 200 | 163.0 (81.5 %) | +258 ± 57 | ~2857 |
   | 2026-10-26 | SF 17, UCI_Elo 2900 (NNUE gen-0 build) | 10+0.1 | 200 | 97.5 (48.8 %) | −9 ± 35 | ~2891 |

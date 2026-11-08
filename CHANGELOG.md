@@ -4,7 +4,11 @@ Until 2026-11-06 the engine was called Quant. Entries before the rename keep the
 
 Every merged change, with bench signature and nps where relevant. Measured on the reference machine (6 cores / 12 threads, AVX2), release build.
 
-## Unreleased
+## 1.1.0 (unreleased)
+
+### v1.1 gauntlet (no code change, bench 680520)
+- Main `bb52cdb` (NNUE gen-1, new time management) vs SF 17, `UCI_LimitStrength` with UCI_Elo 3190, 60+0.6, Hash 16, concurrency 10, UHO_Lichess_4852_v1, on the reference machine: 1000 games, 400 points (40.0 %), −70.4 ± 14.9 Elo, so about **3120** (v1.0: ~2980 vs UCI_Elo 2900 on a cloud server). An estimate against limited Stockfish, not a CCRL rating.
+- No crashes, time losses or illegal moves. All 31,982 "bestmove does not match the last PV" warnings came from Stockfish, none from aqueval (P2-04).
 
 ### NNUE gen-1 net as default (bench 953967 → 680520; handcrafted build unchanged, 912599)
 - `nets/aqueval-gen1-7ae6f8c0.nnue` replaces gen-0 as the embedded net: same architecture and training settings, trained on 104.6 M positions from 1.03 M games of gen-0 self-play (seed 2, 5000 nodes). Details in AGENTS.md (NNUE).

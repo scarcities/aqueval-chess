@@ -2,7 +2,7 @@
 
 A UCI-compatible chess engine written in Rust (edition 2021). aqueval chess combines legal bitboard move generation, modern game-tree search, and NNUE evaluation. Built for local play, benchmarking, and engine development.
 
-- **Strength:** ~2980 Elo, an estimate against Stockfish 17 with UCI_Elo 2900 at 60+0.6 over 1000 games, not an official rating.
+- **Strength:** ~3120 Elo, an estimate against Stockfish 17 with UCI_Elo 3190 at 60+0.6 over 1000 games, not an official rating.
 - **Platforms:** Linux and Windows (x86-64), macOS (Apple Silicon). AVX2 is detected at run time; CPUs without it use scalar inference with identical results at about half the speed.
 
 ## Download

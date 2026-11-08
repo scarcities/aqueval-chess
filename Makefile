@@ -8,8 +8,12 @@ build:
 	cargo build
 
 # Default build: NNUE with the net in nets/ (see build.rs); another net with EVALFILE=<path>.
+# EXE=<path> also copies the binary there (OpenBench builds with `make -j EXE=... EVALFILE=...`).
 release:
 	cargo build --release
+ifdef EXE
+	cp target/release/aqueval$(if $(filter Windows_NT,$(OS)),.exe) $(EXE)
+endif
 
 # Handcrafted eval only (no net).
 release-hce:

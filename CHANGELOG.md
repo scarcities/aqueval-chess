@@ -6,6 +6,9 @@ Every merged change, with bench signature and nps where relevant. Measured on th
 
 ## 1.1.0 (unreleased)
 
+### OpenBench builds (no code change, bench 680520)
+- `make EXE=<path>` copies the release binary to `<path>`, so an OpenBench instance can build aqueval with `make -j EXE=... EVALFILE=...`. Its client reads `Nodes searched` and `Nodes/second` from `aqueval bench` as is (checked with its parser: 680520; with the gen-0 net via `EVALFILE`, 953967).
+
 ### v1.1 gauntlet (no code change, bench 680520)
 - Main `bb52cdb` (NNUE gen-1, new time management) vs SF 17, `UCI_LimitStrength` with UCI_Elo 3190, 60+0.6, Hash 16, concurrency 10, UHO_Lichess_4852_v1, on the reference machine: 1000 games, 400 points (40.0 %), −70.4 ± 14.9 Elo, so about **3120** (v1.0: ~2980 vs UCI_Elo 2900 on a cloud server). An estimate against limited Stockfish, not a CCRL rating.
 - No crashes, time losses or illegal moves. All 31,982 "bestmove does not match the last PV" warnings came from Stockfish, none from aqueval (P2-04).

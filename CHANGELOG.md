@@ -4,7 +4,7 @@ Until 2026-11-06 the engine was called Quant. Entries before the rename keep the
 
 Every merged change, with bench signature and nps where relevant. Measured on the reference machine (6 cores / 12 threads, AVX2), release build.
 
-## 1.1.0 (unreleased)
+## 1.1.0 (2026-11-08)
 
 ### OpenBench builds (no code change, bench 680520)
 - `make EXE=<path>` copies the release binary to `<path>`, so an OpenBench instance can build aqueval with `make -j EXE=... EVALFILE=...`. Its client reads `Nodes searched` and `Nodes/second` from `aqueval bench` as is (checked with its parser: 680520; with the gen-0 net via `EVALFILE`, 953967).

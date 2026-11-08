@@ -308,3 +308,23 @@ fn test_subprocess_bestmove_starts_last_pv() {
         assert_eq!(last_pv, bestmove.split_whitespace().next(), "go nodes {nodes}: bestmove must start the last PV");
     }
 }
+
+#[test]
+fn test_subprocess_contempt_scores_draws() {
+    // After Nf3 Nf6 Ng1, Black's Ng8 repeats the start position a third time.
+    let moves = "position startpos moves g1f3 g8f6 f3g1 f6g8 g1f3 g8f6 f3g1";
+    let run = |contempt: i32| {
+        let mut session = UciSession::start();
+        session.send(&format!("setoption name Contempt value {contempt}"));
+        session.send(moves);
+        session.send("go depth 6");
+        let (lines, bestmove) = session.read_until_bestmove();
+        session.quit();
+        let score = lines.iter().rev().find_map(|l| l.split(" score cp ").nth(1)?.split_whitespace().next()?.parse::<i32>().ok());
+        (bestmove.split_whitespace().next().unwrap_or("").to_string(), score)
+    };
+    // A negative contempt makes the draw worth +100 for Black, more than any normal move.
+    assert_eq!(run(-100), ("f6g8".to_string(), Some(100)));
+    // A positive contempt makes Black avoid it.
+    assert_ne!(run(100).0, "f6g8");
+}

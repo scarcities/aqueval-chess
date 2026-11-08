@@ -56,6 +56,7 @@ You can also connect `target/release/aqueval` to a UCI-compatible chess GUI.
 | Hash | 16 | Transposition table size in MB (1–1024) |
 | Threads | 1 | Single search thread for now |
 | Move Overhead | 30 | Milliseconds held back per move for GUI and network lag |
+| Contempt | 0 | Centipawns a draw costs aqueval (−100 to 100); negative values make it prefer draws, e.g. against stronger opponents |
 | EvalFile | `<embedded>` | Path to another `.nnue` network (NNUE builds) |
 | UseNNUE | true | `false` switches to the handcrafted evaluation (NNUE builds) |
 

@@ -212,6 +212,7 @@ fn parse_go(board: &Board, tokens: &[&str], move_overhead_ms: u64) -> ParsedGo {
             infinite,
             ponder: ponder.then(|| Arc::new(PonderState::default())),
             searchmoves,
+            contempt: 0,
         },
         perft_depth,
     }
@@ -391,7 +392,8 @@ pub fn run_uci<R: BufRead, W: Write + Send + 'static>(mut reader: R, writer: Arc
                     }
                 }
 
-                let parsed_go = parse_go(&board, args, options.move_overhead_ms);
+                let mut parsed_go = parse_go(&board, args, options.move_overhead_ms);
+                parsed_go.limits.contempt = options.contempt;
 
                 if let Some(perft_d) = parsed_go.perft_depth {
                     let mut b_clone = board.clone();

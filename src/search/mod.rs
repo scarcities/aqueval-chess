@@ -37,6 +37,8 @@ pub struct SearchLimits {
     /// Set by `go ponder`: the time limits only start counting at `ponderhit`.
     pub ponder: Option<Arc<PonderState>>,
     pub searchmoves: Option<Vec<Move>>,
+    /// UCI `Contempt` in centipawns: a draw scores −contempt for the side to move at the root.
+    pub contempt: i32,
 }
 
 /// Shared between the UCI thread, which signals `ponderhit`, and the search.
@@ -338,7 +340,7 @@ fn alpha_beta(
 
     // 50-move rule, or a repetition: once inside the search path, threefold before the root.
     if board.halfmove_clock >= 100 || is_search_repetition(board, ctx.root_history) {
-        return 0;
+        return draw_score(ply, ctx);
     }
 
     let key = board.zobrist_hash();
@@ -413,7 +415,7 @@ fn alpha_beta(
         if board.is_in_check() {
             return -MATE_SCORE + (ply as i32);
         } else {
-            return 0; // Stalemate
+            return draw_score(ply, ctx); // Stalemate
         }
     }
 
@@ -582,6 +584,11 @@ fn has_non_pawn_material(board: &Board) -> bool {
     let ours = board.colors[board.side_to_move.index()];
     let pawns_kings = board.pieces[PieceType::Pawn.index()] | board.pieces[PieceType::King.index()];
     (ours & !pawns_kings).is_not_empty()
+}
+
+/// Score of a draw for the side to move at `ply`: the root side (even plies) gets −contempt.
+fn draw_score(ply: usize, ctx: &SearchContext) -> i32 {
+    if ply.is_multiple_of(2) { -ctx.limits.contempt } else { ctx.limits.contempt }
 }
 
 /// Draw by repetition for the search: any earlier occurrence of this position on the search

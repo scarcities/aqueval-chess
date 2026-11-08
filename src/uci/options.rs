@@ -6,6 +6,7 @@ pub struct UciOptions {
     pub hash_mb: usize,
     pub threads: usize,
     pub move_overhead_ms: u64,
+    pub contempt: i32,
 }
 
 impl Default for UciOptions {
@@ -14,6 +15,7 @@ impl Default for UciOptions {
             hash_mb: 16,
             threads: 1,
             move_overhead_ms: 30,
+            contempt: 0,
         }
     }
 }
@@ -48,6 +50,11 @@ impl UciOptions {
                     self.move_overhead_ms = val.min(5000);
                 }
             }
+            "contempt" => {
+                if let Some(val) = value.and_then(|v| v.trim().parse::<i32>().ok()) {
+                    self.contempt = val.clamp(-100, 100);
+                }
+            }
             #[cfg(feature = "nnue")]
             "evalfile" => {
                 let path = value.unwrap_or("").trim();
@@ -72,6 +79,7 @@ impl UciOptions {
         writeln!(writer, "option name Hash type spin default 16 min 1 max 1024")?;
         writeln!(writer, "option name Threads type spin default 1 min 1 max 1")?;
         writeln!(writer, "option name Move Overhead type spin default 30 min 0 max 5000")?;
+        writeln!(writer, "option name Contempt type spin default 0 min -100 max 100")?;
         // The GUI sends `go ponder` only when this is on; the engine needs no setting of its own.
         writeln!(writer, "option name Ponder type check default false")?;
         #[cfg(feature = "nnue")]

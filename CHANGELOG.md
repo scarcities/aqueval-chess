@@ -4,6 +4,12 @@ Until 2026-11-06 the engine was called Quant. Entries before the rename keep the
 
 Every merged change, with bench signature and nps where relevant. Measured on the reference machine (6 cores / 12 threads, AVX2), release build.
 
+## Unreleased
+
+### Contempt option (bench unchanged, 680520 / 912599)
+- New UCI option `Contempt` (centipawns, −100 to 100, default 0): repetitions, the 50-move rule and stalemate score −Contempt for the side to move at the root instead of 0. Default 0 searches exactly as before.
+- Meant for the Lichess bot, which sets it per game from the rating difference. Not SPRT-tested: in self-play contempt only shifts draws between the two sides.
+
 ## 1.1.0 (2026-11-08)
 
 ### OpenBench builds (no code change, bench 680520)
